@@ -67,7 +67,7 @@ $dll = Join-Path $dist 'MarkdownPreview.dll'
 $ErrorActionPreference = 'Continue'
 $zigLog = & $Zig c++ -target x86_64-windows-gnu -std=c++17 -O2 -shared `
     -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN `
-    -I (Join-Path $root 'src') -I (Join-Path $wv2 'include') `
+    -I (Join-Path $root 'src') -I (Join-Path $root 'src\sdk') -I (Join-Path $wv2 'include') `
     (Join-Path $root 'src\plugin.cpp') (Join-Path $root 'src\webview.cpp') `
     -o $dll `
     -lole32 -loleaut32 -luuid -luser32 -lgdi32 -lshell32 -lcomdlg32 -lshlwapi -ladvapi32 -lcomctl32 2>&1
