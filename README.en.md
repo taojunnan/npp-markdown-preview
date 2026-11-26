@@ -109,16 +109,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Zig "C:\path\to\zig.exe"
 - Image paths are resolved relative to the **current Markdown file**
 - The panel's open state lasts for the current session only; it starts closed after a restart
 - Edits re-render after a 120 ms debounce, so typing is not interrupted
-
-### Panel buttons (top right)
-
-| Control | Action |
-| --- | --- |
-| TOC icon | show / hide the table of contents |
-| sun / moon / half-circle | light / dark / follow editor |
-| `A−` / `A+` | decrease / increase body font size |
-| `⋯` | copy full Markdown, export HTML, export PDF, print, open in browser, scroll-sync toggle, sync to caret |
-| `↻` | refresh now |
+- See the panel-buttons table under [Configuration](#configuration) for what each toolbar control does
 
 ### Keyboard shortcuts
 
