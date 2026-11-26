@@ -43,7 +43,7 @@ Cold start shows a skeleton instead of a blank rectangle:
 
 ### Option 1: prebuilt package (recommended)
 
-1. Download [`release/npp-markdown-preview-v1.0.0.zip`](release/npp-markdown-preview-v1.0.0.zip) (~1.4 MB)
+1. Download [npp-markdown-preview-v1.0.0.zip](https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip) (~1.4 MB)
 2. Extract it into the `plugins\` folder of your Notepad++ installation, so that you end up with:
 
    ```

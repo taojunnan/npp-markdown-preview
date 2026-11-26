@@ -43,7 +43,7 @@
 
 ### 方式一：直接下载安装包（推荐）
 
-1. 下载 [`release/npp-markdown-preview-v1.0.0.zip`](release/npp-markdown-preview-v1.0.0.zip)（约 1.4 MB）
+1. 下载 [npp-markdown-preview-v1.0.0.zip](https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip)（约 1.4 MB）
 2. 解压到 Notepad++ 安装目录下的 `plugins\`，确保解压后是：
 
    ```
