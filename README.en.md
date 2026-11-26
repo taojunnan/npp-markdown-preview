@@ -39,7 +39,7 @@ The panel is toggled from the `M` button at the far right of the toolbar:
 
 ### Option 1: prebuilt package (recommended)
 
-1. Download [npp-markdown-preview-v1.0.0.zip](https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip) (~1.4 MB)
+1. Download [npp-markdown-preview.zip](https://github.com/taojunnan/npp-markdown-preview/releases/latest/download/npp-markdown-preview.zip) (~1.4 MB)
 2. Extract it into the `plugins\` folder of your Notepad++ installation, so that you end up with:
 
    ```
@@ -69,7 +69,7 @@ Work through the steps in order and report the result of each one briefly:
    from https://developer.microsoft.com/microsoft-edge/webview2/ first.
 3. If notepad++.exe is running, ask me to save my work and close it before continuing.
 4. Download the package to a temp folder:
-   https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip
+   https://github.com/taojunnan/npp-markdown-preview/releases/latest/download/npp-markdown-preview.zip
    If GitHub is unreachable, retry through a mirror or proxy; if that also fails,
    stop and tell me instead of installing something from an unknown source.
 5. Extract it and copy the whole MarkdownPreview folder into <Notepad++ install dir>\plugins\.

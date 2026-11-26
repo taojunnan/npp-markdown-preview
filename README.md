@@ -39,7 +39,7 @@ Notepad++ 自带的 Markdown 高亮只够看源码，这个面板负责「读起
 
 ### 方式一：直接下载安装包（推荐）
 
-1. 下载 [npp-markdown-preview-v1.0.0.zip](https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip)（约 1.4 MB）
+1. 下载 [npp-markdown-preview.zip](https://github.com/taojunnan/npp-markdown-preview/releases/latest/download/npp-markdown-preview.zip)（约 1.4 MB）
 2. 解压到 Notepad++ 安装目录下的 `plugins\`，确保解压后是：
 
    ```
@@ -66,7 +66,7 @@ Notepad++ 自带的 Markdown 高亮只够看源码，这个面板负责「读起
    安装 Evergreen Runtime，装完再继续。
 3. 如果 notepad++.exe 正在运行，提醒我先保存并关闭；我确认后再退出 Notepad++。
 4. 下载安装包到临时目录：
-   https://github.com/taojunnan/npp-markdown-preview/raw/main/release/npp-markdown-preview-v1.0.0.zip
+   https://github.com/taojunnan/npp-markdown-preview/releases/latest/download/npp-markdown-preview.zip
    若直连 GitHub 失败，换镜像或代理重试；仍然失败就停下来告诉我，不要安装来路不明的文件。
 5. 解压后把里面的 MarkdownPreview 文件夹整体复制到 <Notepad++ 安装目录>\plugins\，
    最终应存在：plugins\MarkdownPreview\MarkdownPreview.dll、WebView2Loader.dll、web\ 目录。
