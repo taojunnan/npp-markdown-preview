@@ -1,170 +1,115 @@
 # Markdown 预览 · Notepad++ 插件
 
-一个**停靠式、实时渲染**的 Markdown 预览面板，使用系统自带的 Edge WebView2 渲染，
-排版参照 GitHub / Typora 的阅读体验，专治常见预览插件「字挤、表格丑、图片不显示、深色刺眼」。
+[English](README.en.md) | 中文
 
-![在 Notepad++ 中的效果](docs/shots/npp-dark.png)
+给 Notepad++ 加一个**像 Typora / GitHub 那样的 Markdown 预览面板**：右侧停靠，编辑即预览，排版、代码高亮、表格、数学公式、本地图片全都对得上。
+
+内置 Notepad++ 自带的 Markdown 高亮只够看源码，这个面板负责「读起来舒服」。
+
+![浅色预览](docs/shots/preview-light.png)
+
+深色：
+
+![深色预览](docs/shots/preview-dark.png)
 
 ## 功能
 
-| 能力 | 说明 |
-| --- | --- |
-| 实时预览 | 输入停止约 120 ms 后重绘，不打断输入手感 |
-| 排版 | GitHub 风格：标题层级、引用、表格、任务列表、删除线、分隔线 |
-| 代码高亮 | highlight.js，常见 40+ 语言，代码块带语言标签与复制按钮 |
-| 目录 | 自动生成 h1–h4 大纲，滚动时高亮当前章节，点击跳转 |
-| 滚动同步 | 编辑器滚动 → 预览按标题锚点插值定位，阅读位置不漂移 |
-| 主题 | 三态：**跟随编辑器背景** / 浅色 / 深色，自动适配你的编辑器配色 |
-| 字号 | 面板内 `A− / A+` 或 `Ctrl + =` / `Ctrl + -`，记忆设置 |
-| 本地图片 | 相对路径、绝对路径、中文路径、`file://` 均可显示 |
-| 数学公式 | KaTeX 渲染 `$...$` 与 `$$...$$` |
-| 导出 | 自包含 HTML（图片内嵌）、PDF、系统打印对话框 |
-| 链接 | 点击 `http(s)` 链接用默认浏览器打开；点击相对 `.md` 链接在 Notepad++ 中打开 |
-| 启动行为 | **默认关闭**，启动时不弹面板；打开 Markdown 文件时只在后台预热引擎（面板不显示），点工具栏 `M` / 菜单 / `Ctrl+Alt+P` 才打开 |
-| 快速打开 | 后台预热 WebView2，点按钮时内容已经渲染好，基本无等待（可在菜单里关掉以省内存） |
-| 自动显示（可选） | 菜单里可开启「打开 Markdown 时自动预览」，开启后只在打开 Markdown 文件时自动弹出 |
-| 工具栏按钮 | 工具栏最右侧的 `M` 按钮，一键显示 / 隐藏预览，按钮高亮表示面板已打开 |
+- **排版**：基于 [github-markdown-css](https://github.com/sindresorhus/github-markdown-css)，正文约 840 px 阅读栏宽、行距 1.75，接近 GitHub / Typora 的阅读体验
+- **代码高亮**：[highlight.js](https://highlightjs.org/) 自动识别语言，浅色/深色两套 GitHub 配色
+- **数学公式**：[KaTeX](https://katex.org/) 行内 `$...$` 与块级 `$$...$$`
+- **表格 / 任务列表 / 脚注 / 删除线**：完整支持，表格可横向滚动
+- **本地图片**：相对路径按 Markdown 文件所在目录解析，支持绝对路径、SVG、emoji
+- **目录（TOC）**：左侧自动生成，随滚动高亮当前章节，点击跳转
+- **滚动同步**：编辑器 → 预览按标题行插值定位，预览 → 编辑器反向同步
+- **主题**：浅色 / 深色 / 跟随编辑器，面板右上角一键切换
+- **导出**：HTML（单文件，图片内联）、PDF、打印
+- **轻量**：启动时面板默认关闭，不预热时**零常驻内存**；冷启动用骨架图占位；关闭面板 30 秒后自动释放浏览器进程（约 180 MB）
 
-## 安装状态
+打开面板的入口是工具栏最右边的小按钮：
 
-本机已安装到：
+![工具栏按钮](docs/shots/toolbar-button.png)
 
-```
-D:\ProgrameFiles\Notepad++\plugins\MarkdownPreview\
-    MarkdownPreview.dll      插件本体（x64）
-    WebView2Loader.dll       WebView2 加载器
-    web\                     前端渲染资源（HTML/CSS/JS/字体）
-```
+冷启动时先显示骨架图，不会白屏：
 
-旧的 `MarkdownViewerPlusPlus` 插件已删除（若安装时 Notepad++ 仍在运行，会在它退出后自动完成删除）。
+![骨架图](docs/shots/skeleton.png)
 
-**重启 Notepad++** 后即可使用。菜单：`插件(P)` → `Markdown 预览`。
+## 环境要求
 
-快捷键：
+- Windows 10 / 11 x64
+- Notepad++ 8.x（在 8.8.5 上验证）
+- **WebView2 运行时**：Windows 11 自带；Windows 10 一般随 Edge 已安装。缺失时面板会提示，去 [Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) 下载 Evergreen Runtime 即可
 
-- `Ctrl+Alt+P` 显示 / 隐藏预览面板
-- `Ctrl+Alt+R` 刷新预览
-- 面板内 `F5` 刷新，`Ctrl+F` 页内查找，`Ctrl+=` / `Ctrl+-` 缩放字号
+## 安装
 
-## 使用要点
+### 方式一：直接下载安装包（推荐）
 
-- **打开预览时的加载过程**：WebView2 冷启动（浏览器进程 + 页面 + 前端脚本）大约 1.5 秒。
-  点 `M` 后面板立刻出现，先显示**与正文同构的骨架图**（目录栏若干条 + 标题条 + 正文行条），
-  页面就绪后无缝换成真实内容，不会出现白屏或黑屏闪烁。
-  如果想让打开更快，可以勾选菜单「插件 → Markdown 预览 → 预加载预览（打开更快）」（配置 `preload=1`）：
-  插件会在后台把引擎和页面准备好、把文档渲染完，点 `M` 时直接贴出成品画面（实测 120 ms 内）。
-  代价是后台常驻 6 个 WebView2 进程（合计约 180 MB 私有内存），所以**默认关闭**。
-- **关掉面板会自动还内存**：面板隐藏 30 秒后，插件会销毁 WebView2 进程（约 180 MB 立刻释放），
-  下次打开面板再重新创建（约 1 秒，期间显示「正在渲染预览…」）。这个行为默认开启，
-  可在菜单里取消勾选「关闭预览后释放内存」（配置 `releaseOnHide=0`）保持常驻。
-- **什么时候打开**：启动 Notepad++ 时面板是关闭的（不占位置）。
-  点工具栏最右边的 `M` 按钮、菜单「显示 / 隐藏预览面板」或 `Ctrl+Alt+P` 才会打开；
-  打开的状态会在本次会话内保持，重新启动后又是关闭状态。
-- **工具栏按钮**：工具栏最右边那个深色 `M` 方块就是预览开关。它在面板打开时显示为按下（浅蓝底），
-  点击即可显示 / 隐藏；按钮提示文字与菜单一致。
+1. 下载 [`release/npp-markdown-preview-v1.0.0.zip`](release/npp-markdown-preview-v1.0.0.zip)（约 1.4 MB）
+2. 解压到 Notepad++ 安装目录下的 `plugins\`，确保解压后是：
 
-  ![工具栏上的 M 按钮](docs/shots/toolbar-button.png)
+   ```
+   <Notepad++>\plugins\MarkdownPreview\MarkdownPreview.dll
+   <Notepad++>\plugins\MarkdownPreview\WebView2Loader.dll
+   <Notepad++>\plugins\MarkdownPreview\web\...
+   ```
 
-- **主题**：工具栏上的主题按钮在「跟随编辑器 → 浅色 → 深色」之间循环，图标会跟着变：
-  太阳 = 浅色、月亮 = 深色、半圆 = 跟随编辑器。
-  「跟随编辑器」读取当前 Scintilla 的默认背景色，所以编辑器用暗色主题时预览也会变暗。
-- **目录**：面板较窄时目录变为抽屉，点工具栏第一个按钮展开/收起。
-- **导出**：右上角 `⋯` 菜单中「导出为 HTML…」「导出为 PDF…」；导出的 HTML 会把
-  本地图片与数学字体一并内嵌，单文件即可分享。
-- **图片**：Markdown 中写相对路径（相对当前 `.md` 文件）即可，例如 `![](assets/a.png)`。
-- **右键**：面板内右键可复制选中内容、全选、复制代码块。
+3. 重启 Notepad++，打开任意 `.md` 文件，点工具栏最右边的 `M` 按钮（或菜单 `插件 → Markdown 预览 → 显示 / 隐藏预览面板`，快捷键 `Ctrl+Alt+P`）
 
-## 配置
+> 便携版（portable）同理，解压到 `Notepad++\plugins\` 下即可。
 
-设置保存在：
+### 方式二：从源码构建
 
-```
-%APPDATA%\Notepad++\plugins\config\MarkdownPreview\MarkdownPreview.ini
-```
-
-| 键 | 默认 | 说明 |
-| --- | --- | --- |
-| `autoOpen` | 0 | 1 = 打开 Markdown 文件时自动显示面板；默认 0（只手动打开） |
-| `preload` | 0 | 1 = 后台预热 WebView2，面板几乎秒开（常驻约 180 MB）；0 = 省内存，打开时显示骨架图，约 1.5 秒出内容 |
-| `releaseOnHide` | 1 | 1 = 面板隐藏 30 秒后销毁 WebView2 进程、把内存还回去；0 = 常驻（再次打开更快） |
-| `theme` | auto | `auto` / `light` / `dark` |
-| `fontSize` | 16 | 正文字号（11–28） |
-| `toc` | 1 | 是否显示目录侧栏 |
-| `sync` | 1 | 是否滚动同步 |
-
-菜单里的「打开 Markdown 时自动预览」带勾选状态，切换会写回该文件。
-
-## 关于旧的 MarkdownViewer++
-
-旧插件 `plugins\MarkdownViewerPlusPlus` 已删除，对应的配置目录也一并清理。
-如果它临时处于「正在被 Notepad++ 占用」的状态，安装流程会在 Notepad++ 退出后自动完成删除，
-日志位于 `%TEMP%\npp-md-setup.log`；也可以手动运行：
+需要 [Zig](https://ziglang.org/download/) 0.13+（当 clang + MinGW-w64 头文件用，**不需要 Visual Studio**）和 Node.js（仅首次拉依赖）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\finish-setup.ps1 -WaitSeconds 0
-```
+git clone git@github.com:taojunnan/npp-markdown-preview.git
+cd npp-markdown-preview
 
-## 从源码构建
-
-需要：Windows 10/11 x64、[Zig](https://ziglang.org/download/) 0.13+（当 clang + MinGW-w64 头文件用，
-不需要 Visual Studio）、Node.js（仅首次拉依赖时用）。
-
-```powershell
 # 1. 拉取构建依赖：WebView2 SDK（NuGet）+ 前端库（npm），约 30 MB，只需一次
 powershell -ExecutionPolicy Bypass -File .\scripts\fetch-deps.ps1
 
-# 2. 构建并安装到 Notepad++
+# 2. 编译并安装到 Notepad++
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Zig "C:\path\to\zig.exe"
 ```
 
-如果 Zig 装在默认位置（`python -m pip install ziglang`），第 2 步可以省略 `-Zig`：
+`build.ps1` 支持的参数：
 
 ```powershell
-python -m pip install ziglang
-powershell -ExecutionPolicy Bypass -File .\build.ps1
+.\build.ps1 -NoInstall                       # 只编译，产物在 dist\MarkdownPreview\
+.\build.ps1 -NppDir "D:\Portable\Notepad++"  # 安装到别的 Notepad++
+.\build.ps1 -Zig "C:\tools\zig\zig.exe"      # Zig 不在默认路径
 ```
 
-可用参数：
+## 使用
 
-```powershell
-# 只构建，不安装
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -NoInstall
+| 操作 | 方式 |
+| --- | --- |
+| 打开 / 关闭面板 | 工具栏 `M` 按钮、菜单 `插件 → Markdown 预览 → 显示 / 隐藏预览面板`、`Ctrl+Alt+P` |
+| 刷新预览 | `Ctrl+Alt+R`，或面板内 `F5` |
+| 页内查找 | 面板内 `Ctrl+F` |
+| 缩放字号 | 面板内 `Ctrl+=` / `Ctrl+-`，或点 `A-` / `A+` |
+| 切换主题 | 面板右上角太阳 / 月亮 / 半圆图标（浅色 / 深色 / 跟随编辑器） |
+| 目录 | 点目录按钮收起/展开；点条目跳转，滚动时高亮当前章节 |
+| 导出 | 面板 `⋯` 菜单 → 导出 HTML / 导出 PDF / 打印 |
 
-# 安装到其它 Notepad++ 目录
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -NppDir "D:\Portable\Notepad++"
+- 图片路径相对于**当前 Markdown 文件**所在目录解析。
+- 面板打开状态只在本次会话内保持，重启 Notepad++ 后默认关闭。
+- 修改文档后 120 ms 防抖自动重新渲染，不打断输入。
 
-# Zig 不在默认路径时
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -Zig "C:\tools\zig\zig.exe"
-```
+## 配置
 
-目录结构：
+配置文件：`%APPDATA%\Notepad++\plugins\config\MarkdownPreview\MarkdownPreview.ini`
 
-```
-src\plugin.cpp      Notepad++ 插件接口、停靠面板、编辑器同步、菜单、工具栏按钮、设置
-src\webview.cpp     WebView2 宿主（COM 回调、资源通道、打印/PDF/截图）
-src\webview.h
-src\sdk\            官方 PluginInterface.h / Docking.h / Scintilla.h
-web\index.html      面板骨架
-web\style.css       排版与主题
-web\app.js          渲染、目录、滚动同步、导出
-test\preview_host.cpp  独立 WebView2 宿主，用于截图/PDF 验证
-docs\shots\         截图
-```
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `autoOpen` | 0 | 1 = 打开 Markdown 文件时自动显示面板 |
+| `preload` | 0 | 1 = 后台预热 WebView2，面板几乎秒开（常驻约 180 MB）；0 = 省内存，打开时显示骨架图，约 1.5 秒出内容 |
+| `releaseOnHide` | 1 | 1 = 面板隐藏 30 秒后销毁 WebView2 进程、把内存还回去；0 = 常驻（再次打开更快） |
+| `theme` | auto | `auto` / `light` / `dark`，对应面板主题按钮 |
+| `fontSize` | 16 | 正文字号（px） |
+| `toc` | 1 | 1 = 显示目录栏 |
+| `sync` | 1 | 1 = 编辑器与预览滚动同步 |
 
-渲染前端依赖（marked、highlight.js、DOMPurify、KaTeX、github-markdown-css）在构建时
-从本地 `_build\js` 复制到 `dist\...\web\vendor`，因此运行时完全离线。
-
-## 排错
-
-- **面板提示「无法创建 WebView2 环境」**：系统缺少 WebView2 运行时。
-  安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Evergreen，x64）。
-- **安装时提示 DLL 被占用**：先完全退出 Notepad++，再运行 `build.ps1`。
-- **面板空白 / 样式错乱**：删除 `%APPDATA%\Notepad++\plugins\config\MarkdownPreview\WebView2`
-  缓存目录后重启 Notepad++。
-- **同时开两个 Notepad++ 窗口时，第二个窗口的预览打不开**：WebView2 的配置目录同一时间只能被
-  一个进程使用。关掉另一个窗口再打开预览即可（提示框里也会说明这一点）。
-- **图片不显示**：确认路径相对当前 `.md` 文件；绝对路径需存在且扩展名是常见图片格式。
-- **中文乱码**：文档需以 UTF-8 保存（Notepad++ 状态栏可确认编码）。
+菜单里的勾选项与配置一一对应，改菜单也会写回配置文件。
 
 ## 卸载
 
@@ -172,15 +117,43 @@ docs\shots\         截图
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-或手动删除插件目录与配置目录。
+或直接删除 `<Notepad++>\plugins\MarkdownPreview\` 与 `%APPDATA%\Notepad++\plugins\config\MarkdownPreview\`。
+
+## 目录结构
+
+```
+src\plugin.cpp        Notepad++ 插件接口、停靠面板、编辑器同步、菜单、工具栏按钮、设置
+src\webview.cpp       WebView2 宿主（COM 回调、资源通道、打印 / PDF）
+src\webview.h
+src\sdk\              官方 PluginInterface.h / Docking.h / Scintilla.h
+web\index.html        面板骨架
+web\style.css         排版与主题
+web\app.js            渲染、目录、滚动同步、导出
+scripts\fetch-deps.ps1 拉取构建依赖（WebView2 SDK + npm 包）
+test\                 样例文档与独立 WebView2 宿主（截图/PDF 验证用）
+docs\shots\           README 截图
+release\              预编译安装包
+```
+
+前端依赖（marked、DOMPurify、highlight.js、KaTeX、github-markdown-css）在构建时从 `_build\js`
+复制进 `dist\...\web\vendor\`，运行期完全离线，不访问网络。
 
 ## 实现说明
 
-- 插件为原生 x64 DLL，仅实现 Notepad++ 的 6 个标准导出函数；面板通过
-  `NPPM_DMMREGASDCKDLG` 注册为可停靠窗口。
-- 预览由 `https://nppmd.local/index.html` 提供（`SetVirtualHostNameToFolderMapping`
-  指向插件内的 `web` 目录）；本地图片走 `https://mdassets.local/r?p=...` 自定义资源通道，
-  因此能读取任意本地路径并返回正确的 MIME。
-- 每次按键只在 `SCN_MODIFIED` 后做一次 120 ms 防抖，再把 UTF-8 文本以 JSON 推给页面；
-  页面用 marked 解析、DOMPurify 清洗后重绘，重绘后恢复原阅读位置。
-- 滚动同步用「源文件标题行号 ↔ DOM 标题元素」配对后线性插值，比单纯百分比更稳。
+- 原生 C++ 插件，界面用 WebView2（Chromium）渲染：`marked` 解析 → `DOMPurify` 过滤 → `highlight.js` 高亮 → `KaTeX` 排公式
+- 面板内容通过 `SetVirtualHostNameToFolderMapping` 映射到本地目录；Markdown 引用的图片走 `WebResourceRequested` 拦截，按文档目录读取，不经过 HTTP
+- 编辑器 → 预览的滚动同步按标题行插值，而不是简单的比例换算；预览 → 编辑器用 `SCI_SETFIRSTVISIBLELINE`
+- 导出 PDF 用 `ICoreWebView2_7::PrintToPdf`；导出 HTML 把图片转成 data URI
+- 冷启动先把 WebView2 窗口隐藏，页面首帧就绪后再显示，中间由宿主窗口绘制骨架图，避免白屏
+
+## 已知限制
+
+- 一个配置目录同时只能有一个 Notepad++ 实例使用 WebView2（多开时第二个窗口会提示，关闭其它窗口后重试即可）
+- 面板打开时占用约 180 MB 内存（Chromium 内核的固有成本）；关闭面板 30 秒后自动释放
+- 仅提供 x64 版本
+
+## 致谢
+
+[marked](https://github.com/markedjs/marked) · [DOMPurify](https://github.com/cure53/DOMPurify) ·
+[highlight.js](https://highlightjs.org/) · [KaTeX](https://katex.org/) ·
+[github-markdown-css](https://github.com/sindresorhus/github-markdown-css)
