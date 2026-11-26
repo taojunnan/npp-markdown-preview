@@ -10,12 +10,21 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Dest = (Join-Path (Split-Path $PSScriptRoot -Parent) '_build'),
+    [string]$Dest = '',
     [string]$WebView2Version = '1.0.4392-prerelease'
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+# build.ps1 looks for _build next to the repository, i.e. the parent of the
+# folder this script lives in.  Resolve it here (not in the param block, where
+# $PSScriptRoot is not set yet on Windows PowerShell 5.1).
+if (-not $Dest) {
+    $repoRoot = Split-Path $PSScriptRoot -Parent
+    $Dest = Join-Path (Split-Path $repoRoot -Parent) '_build'
+}
+Write-Host "依赖目录：$Dest" -ForegroundColor DarkGray
 
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
