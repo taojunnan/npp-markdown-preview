@@ -17,6 +17,7 @@
 
 #include "sdk\Docking.h"
 #include "sdk\PluginInterface.h"
+#include "log.h"
 #include "webview.h"
 
 // ------------------------------------------------------------- plugin data --
@@ -52,6 +53,7 @@ struct Config {
     bool autoOpen = false;
     bool preload = false;          // opt-in: warm up WebView2 in the background
     bool releaseOnHide = true;     // free the browser once the panel stays closed
+    bool debug = false;            // write preview.log next to the ini
     std::wstring theme = L"auto";  // auto | light | dark
     int fontSize = 16;
     bool toc = true;
@@ -78,6 +80,7 @@ static void LoadConfig() {
     g_cfg.autoOpen = IniReadInt(L"general", L"autoOpen", 0) != 0;
     g_cfg.preload = IniReadInt(L"general", L"preload", 0) != 0;
     g_cfg.releaseOnHide = IniReadInt(L"general", L"releaseOnHide", 1) != 0;
+    g_cfg.debug = IniReadInt(L"general", L"debug", 0) != 0;
     g_cfg.theme = IniReadStr(L"appearance", L"theme", L"auto");
     if (g_cfg.theme != L"auto" && g_cfg.theme != L"light" && g_cfg.theme != L"dark") g_cfg.theme = L"auto";
     g_cfg.fontSize = IniReadInt(L"appearance", L"fontSize", 16);
@@ -353,6 +356,7 @@ static std::wstring AskSavePath(const wchar_t* filter, const wchar_t* defaultNam
 static void EnsureWebView(bool quiet = false);
 static void WarmUpWebView();
 static void StartReleaseTimer();
+static void ApplyRelease();
 static void RenderNow(bool force);
 static void ApplyTheme();
 static void ShowPanel(bool show, bool userAction);
@@ -372,6 +376,7 @@ void HandleWebMessage(const std::wstring& json);
 #define TIMER_FORCE_SHOW 3
 static const UINT kReleaseDelayMs = 30000;  // give the memory back after 30 s hidden
 static bool g_checkUpdatePending = false;
+static ULONGLONG g_webStartTick = 0;
 
 static void PostToggleChecks() {
     if (!g_panel || g_checkUpdatePending) return;
@@ -519,12 +524,7 @@ static LRESULT CALLBACK PanelProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
                 if (g_web) g_web->SetVisible(true);
             } else if (wParam == TIMER_RELEASE_ENGINE) {
                 KillTimer(hwnd, TIMER_RELEASE_ENGINE);
-                if (g_web && !IsWindowVisible(hwnd)) {
-                    g_web->Destroy();
-                    delete g_web;
-                    g_web = nullptr;
-                    g_webFailed = false;
-                }
+                ApplyRelease();
             }
             return 0;
         }
@@ -550,13 +550,18 @@ static void EnsurePanel() {
 }
 
 static void EnsureWebView(bool quiet) {
-    if (g_web || g_webFailed || !g_panel) return;
+    mdlog::Line(L"EnsureWebView quiet=%d web=%d", quiet ? 1 : 0, g_web ? 1 : 0);
+    if (g_webFailed || !g_panel) return;
     // Do not spin up the browser for a dock that Notepad++ restored on startup
     // while the panel is meant to stay closed.
     if (g_startup && !g_cfg.autoOpen) return;
 
+    if (g_web) return;
+
+    g_webStartTick = mdlog::Now();
     g_web = new WebViewHost();
     g_web->onReady = []() {
+        mdlog::Line(L"page ready after %llu ms", mdlog::Now() - g_webStartTick);
         // the page has painted its first frame: swap the placeholder for it
         if (g_panel) KillTimer(g_panel, TIMER_FORCE_SHOW);
         if (g_web) g_web->SetVisible(true);
@@ -565,6 +570,7 @@ static void EnsureWebView(bool quiet) {
     };
     g_web->onMessage = [](const std::wstring& json) { HandleWebMessage(json); };
     g_web->onError = [quiet](const std::wstring& text) {
+        mdlog::Line(L"webview error: %s", text.c_str());
         g_webFailed = true;
         if (g_web) g_web->SetVisible(true);
         if (quiet) {
@@ -598,7 +604,8 @@ static void EnsureWebView(bool quiet) {
 // active the runtime is prepared in the background, so the panel opens with the
 // document already rendered.
 static void WarmUpWebView() {
-    if (!g_cfg.preload || g_startup || g_web || g_webFailed || !g_panel) return;
+    if (!g_cfg.preload || g_startup || g_webFailed || !g_panel) return;
+    if (g_web && g_web->IsReady()) return;
     if (IsWindowVisible(g_panel)) return;
 
     RECT rc = {};
@@ -618,8 +625,19 @@ static void WarmUpWebView() {
 // has been closed for a while, drop them and let the next open build them again.
 static void StartReleaseTimer() {
     if (!g_panel || !g_cfg.releaseOnHide) return;
-    if (!g_web) return;
+    if (!g_web || !g_web->IsAvailable()) return;
     SetTimer(g_panel, TIMER_RELEASE_ENGINE, kReleaseDelayMs, nullptr);
+}
+
+// Closing the last WebView2 page also terminates the browser process, so a
+// "page only" release saves nothing measurable; release everything.
+static void ApplyRelease() {
+    if (!g_web || IsWindowVisible(g_panel)) return;
+    mdlog::Line(L"release engine (webview open for %llu ms)", mdlog::Now() - g_webStartTick);
+    g_web->Destroy();
+    delete g_web;
+    g_web = nullptr;
+    g_webFailed = false;
 }
 
 static void RegisterDock() {
@@ -783,6 +801,11 @@ void HandleWebMessage(const std::wstring& json) {
         } else {
             ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         }
+        return;
+    }
+    if (type == L"timing") {
+        std::wstring text;
+        if (JsonGetString(json, L"text", text)) mdlog::Line(L"page timing %s", text.c_str());
         return;
     }
     if (type == L"copyText") {
@@ -1145,7 +1168,7 @@ static void CmdReleaseOnHide() {
     if (!g_panel) return;
     if (!g_cfg.releaseOnHide) {
         KillTimer(g_panel, TIMER_RELEASE_ENGINE);
-    } else if (!IsWindowVisible(g_panel) && (g_web || g_cfg.preload)) {
+    } else if (!IsWindowVisible(g_panel)) {
         StartReleaseTimer();
     }
 }
@@ -1175,6 +1198,8 @@ extern "C" __declspec(dllexport) void setInfo(NppData data) {
     g_iniPath = g_configDir + L"\\MarkdownPreview.ini";
 
     LoadConfig();
+    mdlog::Init(g_configDir, g_cfg.debug);
+    mdlog::Line(L"plugin loaded, dir=%s", g_pluginDir.c_str());
     // materialise the defaults once so the settings file is easy to find and edit
     if (GetFileAttributesW(g_iniPath.c_str()) == INVALID_FILE_ATTRIBUTES) SaveConfig();
     EnsurePanel();

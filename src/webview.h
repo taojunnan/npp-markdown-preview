@@ -20,6 +20,8 @@ public:
                 const std::wstring& webRoot);
 
     void Destroy();
+    // Drops the controller, the webview and the browser processes.
+    void ReleasePage();
     void Resize(int widthPixels, int heightPixels);
     // Keep the browser window hidden until the first render is ready, so the
     // host can paint its own placeholder in the meantime.

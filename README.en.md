@@ -179,8 +179,21 @@ sync=1
 | `fontSize` | `16` | `12` – `24` | body font size in px; the `A−` / `A+` buttons change this |
 | `toc` | `1` | `0` / `1` | show the contents column |
 | `sync` | `1` | `0` / `1` | synchronised scrolling between editor and preview |
+| `debug` | `0` | `0` / `1` | write startup, navigation and render timings to `preview.log` |
 
 Hand-edited values take effect after restarting Notepad++; changes made from the menu or panel buttons apply immediately and are written back to the file.
+
+### Troubleshooting: turn the log on
+
+Set `debug` to `1` and restart Notepad++. The plugin then writes:
+
+```
+%APPDATA%\Notepad++\plugins\config\MarkdownPreview\preview.log
+```
+
+It records the environment/controller HRESULTs, navigation result, time to first frame, when the engine was released,
+and the timings the page reports (`dom=` / `rspEnd=` / `load=`). Attach that file when filing an issue. The log is
+cleared automatically once it passes 512 KB.
 
 ## Uninstall
 

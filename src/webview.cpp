@@ -1,4 +1,5 @@
 // Markdown Preview for Notepad++ - WebView2 host implementation
+#include "log.h"
 #include "webview.h"
 
 #include <windows.h>
@@ -333,6 +334,7 @@ struct WebViewHost::Impl {
     ICoreWebView2* webview = nullptr;
 
     bool ready = false;
+    bool creating = false;   // controller creation in flight
     bool dark = false;
     bool failed = false;
     int width = 0;
@@ -399,7 +401,10 @@ struct WebViewHost::Impl {
 
     HRESULT CreateController() {
         if (!env) return E_FAIL;
+        if (creating) return S_FALSE;
+        creating = true;
         ControllerHandler::Fn fn = [this](HRESULT hr, ICoreWebView2Controller* c) -> HRESULT {
+            creating = false;
             if (FAILED(hr) || !c) {
                 Fail(L"WebView2 控制器创建失败。");
                 return hr;
@@ -470,6 +475,7 @@ struct WebViewHost::Impl {
                 LONG status = 0;
                 args->get_WebErrorStatus((COREWEBVIEW2_WEB_ERROR_STATUS*)&status);
                 WV_TRACE("[wv] navigation completed ok=%d status=%ld\n", (int)ok, status);
+                mdlog::Line(L"navigation completed ok=%d status=%ld", (int)ok, (long)status);
                 if (ok) {
                     ready = true;
                     ApplyBounds();
@@ -555,12 +561,15 @@ struct WebViewHost::Impl {
 #endif
             HRESULT nhr = webview->Navigate(startUrl.c_str());
             WV_TRACE("[wv] navigate hr=0x%08lx\n", (unsigned long)nhr);
+            mdlog::Line(L"navigate hr=0x%08lx", (unsigned long)nhr);
             return S_OK;
         };
 
         ControllerHandler* handler = new ControllerHandler(fn);
         HRESULT hr = env->CreateCoreWebView2Controller(parent, handler);
         handler->Release();
+        if (FAILED(hr)) creating = false;
+        mdlog::Line(L"create controller hr=0x%08lx", (unsigned long)hr);
         return hr;
     }
 
@@ -670,6 +679,7 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
 
     EnvHandler::Fn fn = [this](HRESULT hr, ICoreWebView2Environment* env) -> HRESULT {
         WV_TRACE("[wv] env hr=0x%08lx\n", (unsigned long)hr);
+        mdlog::Line(L"environment hr=0x%08lx", (unsigned long)hr);
         if (FAILED(hr) || !env) {
             impl_->Fail(
                 L"无法创建 WebView2 环境。\n\n"
@@ -697,6 +707,19 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
 
 void WebViewHost::Destroy() {
     if (!impl_) return;
+    ReleasePage();
+    if (impl_->env) {
+        impl_->env->Release();
+        impl_->env = nullptr;
+    }
+    if (impl_->loader) {
+        FreeLibrary(impl_->loader);
+        impl_->loader = nullptr;
+    }
+}
+
+void WebViewHost::ReleasePage() {
+    if (!impl_) return;
     if (impl_->controller) {
         impl_->controller->Close();
     }
@@ -712,16 +735,11 @@ void WebViewHost::Destroy() {
         impl_->controller->Release();
         impl_->controller = nullptr;
     }
-    if (impl_->env) {
-        impl_->env->Release();
-        impl_->env = nullptr;
-    }
-    if (impl_->loader) {
-        FreeLibrary(impl_->loader);
-        impl_->loader = nullptr;
-    }
     impl_->ready = false;
+    impl_->creating = false;
 }
+
+
 
 void WebViewHost::Resize(int widthPixels, int heightPixels) {
     impl_->width = widthPixels > 0 ? widthPixels : 0;

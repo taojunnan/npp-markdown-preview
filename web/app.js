@@ -1107,6 +1107,30 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
     render(text, { path: 'D:\\Demo\\演示.md', dir: 'D:\\Demo' });
   }
 
+  // Diagnostics only: the host logs these numbers when debug=1.
+  function reportTiming() {
+    try {
+      const nav = (performance.getEntriesByType('navigation') || [])[0] || {};
+      const rb = (performance.getEntriesByType('resource') || []);
+      let heaviest = '';
+      let worst = 0;
+      for (const r of rb) {
+        if (r.duration > worst) { worst = r.duration; heaviest = r.name.split('/').pop(); }
+      }
+      const text = 'dom=' + Math.round(performance.now()) +
+        ' req=' + Math.round(nav.requestStart || 0) +
+        ' rspStart=' + Math.round(nav.responseStart || 0) +
+        ' rspEnd=' + Math.round(nav.responseEnd || 0) +
+        ' dcl=' + Math.round(nav.domContentLoadedEventEnd || 0) +
+        ' resources=' + rb.length +
+        ' slowest=' + heaviest + '(' + Math.round(worst) + 'ms)';
+      post({ type: 'timing', text: text });
+      window.addEventListener('load', function () {
+        post({ type: 'timing', text: 'load=' + Math.round(performance.now()) });
+      }, { once: true });
+    } catch (e) { }
+  }
+
   // ------------------------------------------------------------------ boot --
 
   function boot() {
@@ -1118,6 +1142,7 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
 
     if (embedded) {
       post({ type: 'ready' });
+      reportTiming();
     } else {
       startDemo();
     }

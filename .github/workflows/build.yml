@@ -1,0 +1,68 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Zig
+        run: |
+          python -m pip install --disable-pip-version-check --quiet ziglang
+          $zigDir = python -c "import os, ziglang; print(os.path.dirname(ziglang.__file__))"
+          $zig = Join-Path $zigDir 'zig.exe'
+          if (-not (Test-Path $zig)) { throw "zig.exe not found in $zigDir" }
+          & $zig version
+          "ZIG=$zig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Fetch build dependencies
+        run: ./scripts/fetch-deps.ps1
+
+      - name: Build plugin
+        run: ./build.ps1 -Zig $env:ZIG -NoInstall
+
+      - name: Verify output
+        run: |
+          $dll = 'dist/MarkdownPreview/MarkdownPreview.dll'
+          if (-not (Test-Path $dll)) { throw 'MarkdownPreview.dll was not produced' }
+          Get-ChildItem dist/MarkdownPreview -Recurse -File |
+            Measure-Object -Property Length -Sum |
+            ForEach-Object { "dist: {0} files, {1:N0} KB" -f $_.Count, ($_.Sum / 1KB) }
+
+      - name: Package
+        run: |
+          $name = if ($env:GITHUB_REF_TYPE -eq 'tag') { 'npp-markdown-preview.zip' } else { 'npp-markdown-preview-dev.zip' }
+          Compress-Archive -Path dist/MarkdownPreview -DestinationPath $name
+          "PKG=$name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Get-Item $name | ForEach-Object { "package: {0} ({1:N0} KB)" -f $_.Name, ($_.Length / 1KB) }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MarkdownPreview
+          path: ${{ env.PKG }}
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.PKG }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -1,4 +1,4 @@
-<#
+﻿<#
     Markdown Preview for Notepad++ — 拉取构建依赖
 
     把构建需要的东西下载到底盘上的 _build 目录（与项目目录同级）：
