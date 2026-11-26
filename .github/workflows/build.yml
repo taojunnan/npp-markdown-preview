@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 jobs:
   windows:
@@ -36,7 +37,25 @@ jobs:
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/fetch-deps.ps1
 
       - name: Build plugin
-        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./build.ps1 -Zig $env:ZIG -NoInstall
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./build.ps1 -Zig $env:ZIG -NoInstall 2>&1 |
+            Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) { throw "build.ps1 exited with $LASTEXITCODE" }
+
+      - name: Report build failure
+        if: failure()
+        run: |
+          $tail = ''
+          if (Test-Path build.log) {
+            $tail = ((Get-Content build.log -Tail 40) -join ' | ') -replace '\s+', ' '
+          }
+          if (-not $tail) { $tail = 'build.log missing' }
+          if ($tail.Length -gt 130) { $tail = $tail.Substring($tail.Length - 130) }
+          $body = @{ state = 'failure'; context = 'build-error'; description = $tail } | ConvertTo-Json
+          Invoke-RestMethod -Method Post `
+            -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" `
+            -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" } `
+            -ContentType 'application/json' -Body $body
 
       - name: Verify output
         run: |
