@@ -30,7 +30,9 @@ if (Test-Path $header) {
     New-Item -ItemType Directory -Force -Path (Split-Path $nupkg -Parent) | Out-Null
     Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$WebView2Version" -OutFile $nupkg
     if (Test-Path $pkgDir) { Remove-Item $pkgDir -Recurse -Force }
-    Expand-Archive -Path $nupkg -DestinationPath $pkgDir -Force
+    # Expand-Archive refuses non-.zip extensions, and a .nupkg is just a zip.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $pkgDir)
     if (-not (Test-Path $header)) { throw 'WebView2 SDK 解压后缺少 include\WebView2.h' }
 }
 

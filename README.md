@@ -77,6 +77,8 @@ Notepad++ 自带的 Markdown 高亮只够看源码，这个面板负责「读起
 
 ### 方式三：从源码构建
 
+> 每次推 `v*` 标签，GitHub Actions 会自动编译并发布到 [Releases](https://github.com/taojunnan/npp-markdown-preview/releases)，也可以直接下载那里的压缩包。
+
 需要 [Zig](https://ziglang.org/download/) 0.13+（当 clang + MinGW-w64 头文件用，**不需要 Visual Studio**）和 Node.js（仅首次拉依赖）。
 
 ```powershell

@@ -82,6 +82,8 @@ Work through the steps in order and report the result of each one briefly:
 
 ### Option 3: build from source
 
+> Every `v*` tag is built by GitHub Actions and published under [Releases](https://github.com/taojunnan/npp-markdown-preview/releases), so you can simply grab the zip from there.
+
 You need [Zig](https://ziglang.org/download/) 0.13+ (used as clang + MinGW-w64 headers, **no Visual Studio required**) and Node.js (only to fetch dependencies once).
 
 ```powershell

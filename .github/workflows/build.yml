@@ -33,10 +33,10 @@ jobs:
           "ZIG=$zig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Fetch build dependencies
-        run: ./scripts/fetch-deps.ps1
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/fetch-deps.ps1
 
       - name: Build plugin
-        run: ./build.ps1 -Zig $env:ZIG -NoInstall
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./build.ps1 -Zig $env:ZIG -NoInstall
 
       - name: Verify output
         run: |
