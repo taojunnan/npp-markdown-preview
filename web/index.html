@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-theme-mode="auto" class="booting">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' https: http: data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self' https: http: file:; media-src 'self' https: data:;">
+<title>Markdown 预览</title>
+<link rel="stylesheet" id="gh-light" href="vendor/gh-light.css?v={{V}}">
+<link rel="stylesheet" id="gh-dark" href="vendor/gh-dark.css?v={{V}}" disabled>
+<link rel="stylesheet" id="hl-light" href="vendor/hljs-light.css?v={{V}}">
+<link rel="stylesheet" id="hl-dark" href="vendor/hljs-dark.css?v={{V}}" disabled>
+<link rel="stylesheet" href="vendor/katex.min.css?v={{V}}">
+<link rel="stylesheet" href="style.css?v={{V}}">
+</head>
+<body class="no-toc">
+
+<div id="app">
+  <!-- ------------------------------------------------ toolbar -->
+  <header id="bar">
+    <div class="brand" title="Markdown 预览">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M14 4v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+      <span id="doc-name">未命名</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="tools">
+      <button id="btn-toc" class="tbtn" title="目录 (Ctrl+Alt+T)" aria-label="目录">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <path d="M4 6h16M4 12h10M4 18h13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button id="btn-theme" class="tbtn" title="切换深浅色" aria-label="切换主题">
+        <svg class="i-sun" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"
+                fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <svg class="i-moon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <path d="M20 14.2A8.2 8.2 0 1 1 9.8 4a6.6 6.6 0 0 0 10.2 10.2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+        <svg class="i-auto" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M12 4.7a7.3 7.3 0 0 1 0 14.6z" fill="currentColor"/>
+        </svg>
+      </button>
+      <div class="zoomgrp">
+        <button id="btn-zoom-out" class="tbtn" title="缩小字号 (Ctrl+-)" aria-label="缩小字号">A−</button>
+        <button id="btn-zoom-in" class="tbtn" title="放大字号 (Ctrl+=)" aria-label="放大字号">A+</button>
+      </div>
+      <button id="btn-more" class="tbtn" title="更多操作" aria-label="更多操作" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <circle cx="5.5" cy="12" r="1.6" fill="currentColor"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+          <circle cx="18.5" cy="12" r="1.6" fill="currentColor"/>
+        </svg>
+      </button>
+      <button id="btn-refresh" class="tbtn" title="刷新预览 (F5)" aria-label="刷新预览">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <path d="M20 12a8 8 0 1 1-2.6-5.9M20 4.5V10h-5.4" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------ content -->
+  <div id="main">
+    <aside id="toc" aria-label="文档目录">
+      <div class="toc-head">
+        <span>目录</span>
+        <button id="btn-toc-close" class="tbtn tiny" title="收起目录" aria-label="收起目录">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <nav id="toc-list" class="toc-list"></nav>
+    </aside>
+
+    <div id="scroll">
+      <div id="boot" aria-hidden="true">
+        <div class="sk sk-title"></div>
+        <div class="sk sk-line" style="width:92%"></div>
+        <div class="sk sk-line" style="width:85%"></div>
+        <div class="sk sk-line" style="width:78%"></div>
+        <div class="sk sk-block"></div>
+        <div class="sk sk-line" style="width:88%"></div>
+        <div class="sk sk-line" style="width:64%"></div>
+      </div>
+      <article id="doc" class="markdown-body"></article>
+
+      <section id="empty" hidden>
+        <div class="empty-card">
+          <div class="empty-icon">
+            <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+              <rect x="10" y="6" width="34" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="2.4" opacity=".45"/>
+              <path d="M20 6h20l8 8v38a2 2 0 0 1-2 2H20a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2.4"/>
+              <path d="M40 6v8h8" fill="none" stroke="currentColor" stroke-width="2.4"/>
+              <path d="M24 38l8-9 6 6 4-4 6 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" opacity=".7"/>
+              <circle cx="29" cy="25" r="2.4" fill="currentColor" opacity=".7"/>
+            </svg>
+          </div>
+          <h1>开始书写，右侧即时呈现</h1>
+          <p class="muted">在 Notepad++ 中输入 Markdown，这里会实时渲染成排版良好的文档。</p>
+          <div class="hints">
+            <div><code># 标题</code><span>章节结构</span></div>
+            <div><code>**粗体**</code><span>强调文字</span></div>
+            <div><code>- 列表</code><span>清单</span></div>
+            <div><code>```js</code><span>代码高亮</span></div>
+            <div><code>| 表格 |</code><span>数据表格</span></div>
+            <div><code>![](img/a.png)</code><span>本地图片</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="error" hidden>
+        <div class="empty-card">
+          <div class="empty-icon err">!</div>
+          <h1>预览未能启动</h1>
+          <p class="muted" id="error-text"></p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------ status -->
+  <footer id="status">
+    <span id="status-left" class="muted">就绪</span>
+    <span class="spacer"></span>
+    <span id="status-right" class="muted"></span>
+  </footer>
+</div>
+
+<!-- overflow menu -->
+<div id="more-menu" class="menu" hidden>
+  <button data-act="copy-all">复制全文 Markdown</button>
+  <button data-act="export-html">导出为 HTML…</button>
+  <button data-act="export-pdf">导出为 PDF…</button>
+  <button data-act="print">打印…</button>
+  <button data-act="browser">在浏览器中打开</button>
+  <div class="menu-sep"></div>
+  <button data-act="toggle-sync">滚动同步：开</button>
+  <button data-act="sync-now">同步到光标位置</button>
+</div>
+
+<!-- lightbox -->
+<div id="lightbox" hidden>
+  <img id="lightbox-img" alt="">
+</div>
+
+<!-- custom context menu -->
+<div id="ctx-menu" class="menu" hidden>
+  <button data-act="ctx-copy">复制</button>
+  <button data-act="ctx-selectall">全选</button>
+  <button data-act="ctx-copy-code" hidden>复制代码块</button>
+  <div class="menu-sep"></div>
+  <button data-act="ctx-open-browser">在浏览器中打开</button>
+</div>
+
+<div id="toast" hidden></div>
+
+<script defer src="vendor/marked.umd.js?v={{V}}"></script>
+<script defer src="vendor/purify.min.js?v={{V}}"></script>
+<script defer src="vendor/highlight.min.js?v={{V}}"></script>
+<script defer src="vendor/katex.min.js?v={{V}}"></script>
+<script defer src="vendor/marked-katex.umd.js?v={{V}}"></script>
+<script defer src="app.js?v={{V}}"></script>
+</body>
+</html>

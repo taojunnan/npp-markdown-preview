@@ -1,0 +1,20 @@
+# 构建产物
+dist/
+
+# 构建依赖缓存（scripts/fetch-deps.ps1 生成，位于项目同级目录）
+_build/
+*.tgz
+*.nupkg
+
+# 本机编译产物 / 调试信息
+*.exe
+*.pdb
+*.obj
+*.lib
+*.dll
+
+# 编辑器杂项
+.vs/
+.vscode/
+*.user
+Thumbs.db
