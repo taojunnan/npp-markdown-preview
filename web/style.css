@@ -79,56 +79,26 @@ body {
 
 /* ------------------------------------------------------------ toolbar --- */
 
-#bar {
-  flex: 0 0 auto;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 7px 0 10px;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--bg);
-  user-select: none;
-  position: relative;
-  z-index: 30;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  color: var(--fg-muted);
-}
-
-.brand svg { flex: 0 0 auto; opacity: 0.85; }
-
-#doc-name {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 46vw;
-  opacity: 0.92;
-}
-
-#doc-name.dirty::after {
-  content: "•";
-  margin-left: 5px;
-  color: var(--accent);
-}
-
-.spacer { flex: 1 1 auto; }
-
+/* the toolbar floats over the document at the top right; there is no title bar */
 .tools {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 1px;
-  flex: 0 0 auto;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border-soft), 0 2px 6px rgba(0, 0, 0, 0.07);
+  opacity: 0.86;
+  transition: opacity 0.14s ease;
+  user-select: none;
 }
 
+.tools:hover,
+.tools:focus-within { opacity: 1; }
 .tbtn {
   appearance: none;
   border: 0;
@@ -197,7 +167,7 @@ html[data-theme-mode="auto"] #btn-theme .i-auto { display: block; }
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 34px 44px;
+  padding: 40px 44px;
   pointer-events: none;
   overflow: hidden;
 }
@@ -226,7 +196,7 @@ html.booting #error { display: none !important; }
 #doc {
   max-width: 840px;
   margin: 0 auto;
-  padding: 34px 44px 140px;
+  padding: 40px 44px 140px;
   background: transparent !important;
   color: var(--fg) !important;
   font-family: var(--ui-font);
@@ -849,7 +819,7 @@ body.print-mode .h-anchor { display: none !important; }
     color: #000 !important;
   }
 
-  #bar, #toc, #status, .menu, #lightbox, #toast { display: none !important; }
+  .tools, #toc, #status, .menu, #lightbox, #toast { display: none !important; }
 
   #main { display: block; }
   #scroll { overflow: visible; }

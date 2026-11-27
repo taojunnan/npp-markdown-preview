@@ -614,8 +614,12 @@
       if (typeof meta.lang === 'string' && meta.lang !== lang) applyLang(meta.lang);
     }
     state.name = state.path ? basename(state.path) : t('untitled');
-    $('doc-name').textContent = state.name;
-    $('doc-name').title = state.path || '';
+    // the title bar is gone; the status bar carries the path instead
+    const nameEl = $('doc-name');
+    if (nameEl) {
+      nameEl.textContent = state.name;
+      nameEl.title = state.path || '';
+    }
 
     const pathChanged = state.renderedPath !== state.path;
     state.renderedPath = state.path;

@@ -457,9 +457,23 @@ static void PaintSkeleton(HWND hwnd, HDC dc) {
 
     HBRUSH barBrush = CreateSolidBrush(bar);
 
+    // floating toolbar pill in the top right corner
+    {
+        const int pillW = S(150);
+        const int pillH = S(26);
+        RECT pill = {rc.right - S(9) - pillW, S(7), rc.right - S(9), S(7) + pillH};
+        HBRUSH pillBrush = CreateSolidBrush(g_dark ? RGB(30, 37, 46) : RGB(246, 248, 250));
+        HGDIOBJ oldBrush = SelectObject(dc, pillBrush);
+        HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
+        RoundRect(dc, pill.left, pill.top, pill.right, pill.bottom, S(8), S(8));
+        SelectObject(dc, oldBrush);
+        SelectObject(dc, oldPen);
+        DeleteObject(pillBrush);
+    }
+
     // table of contents column
     const int tocW = S(228);
-    int ty = S(58);
+    int ty = S(16);
     const int tocWidths[7] = {66, 118, 100, 88, 108, 80, 94};
     for (int i = 0; i < 7; ++i) {
         RECT r = {S(12), ty, S(12) + S(tocWidths[i]), ty + S(9)};
@@ -472,7 +486,7 @@ static void PaintSkeleton(HWND hwnd, HDC dc) {
     const int x1 = rc.right - S(44);
     if (x1 > x0 + S(120)) {
         const int w = x1 - x0;
-        int y = S(44);
+        int y = S(20);
         RECT title = {x0, y, x0 + w * 58 / 100, y + S(26)};
         FillRect(dc, &title, barBrush);
         y += S(26) + S(28);
@@ -1112,7 +1126,7 @@ static void CmdPrint() {
 
 static void CmdAbout() {
     std::wstring text = mdtr::English()
-        ? std::wstring(L"Markdown Preview v1.2.2\n\n"
+        ? std::wstring(L"Markdown Preview v1.3.0\n\n"
                        L"A live, dockable Markdown preview for Notepad++:\n"
                        L"\u2022 GitHub-style typography, tables / task lists / strikethrough\n"
                        L"\u2022 Syntax highlighting with one-click copy\n"
@@ -1122,7 +1136,7 @@ static void CmdAbout() {
                        L"Renderer: Microsoft Edge WebView2 (installed)\n"
                        L"Shortcuts: Ctrl+Alt+P toggles the panel, Ctrl+Alt+R refreshes\n\n"
                        L"Config file:\n")
-        : std::wstring(L"Markdown 预览 v1.2.2\n\n"
+        : std::wstring(L"Markdown 预览 v1.3.0\n\n"
                        L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
                        L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
                        L"• 代码语法高亮，一键复制\n"
