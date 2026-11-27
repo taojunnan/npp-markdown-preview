@@ -25,7 +25,7 @@ English UI (set `language=en`):
 - **Local images** — relative paths resolve against the Markdown file's folder; absolute paths, SVG and emoji work too
 - **Table of contents** — auto-generated on the left, highlights the current section while scrolling, click to jump
 - **Jump back to source** — click any heading in the preview and the editor caret moves to that line; move the caret in the editor and the table of contents follows
-- **Scroll sync** — editor → preview is interpolated by heading lines; preview → editor works too
+- **Scroll sync** — block level anchors (headings, paragraphs, lists, code blocks, tables each know their source line); preview → editor works too
 - **Themes** — light / dark / follow editor, one click from the panel toolbar
 - **Bilingual UI** — follows the system language, or pin it in the config file
 - **Export** — HTML (single file, images inlined), PDF, print
@@ -239,7 +239,8 @@ Front-end libraries (marked, DOMPurify, highlight.js, KaTeX, github-markdown-css
 
 - Native C++ plugin; the panel is rendered by WebView2 (Chromium): `marked` parses → `DOMPurify` sanitizes → `highlight.js` highlights → `KaTeX` typesets math
 - Panel assets are served through `SetVirtualHostNameToFolderMapping`; images referenced by the document are intercepted with `WebResourceRequested` and read from the file system — no HTTP involved
-- Editor → preview sync interpolates by heading lines instead of a naive percentage; preview → editor uses `SCI_SETFIRSTVISIBLELINE`
+- A lightweight scanner mirrors marked and records the source line of every top level block (heading, paragraph, list, code block, table, quote, rule). Syncing binary-searches that block and interpolates only inside it, so a table or a code block cannot drag the mapping off. If the block count or kinds disagree with the DOM the map is dropped and heading anchors take over
+- Preview → editor uses `SCI_SETFIRSTVISIBLELINE`, aligning viewport top with viewport top in both directions
 - PDF export uses `ICoreWebView2_7::PrintToPdf`; HTML export inlines images as data URIs
 - On a cold start the WebView2 window stays hidden until its first frame is ready; the host window paints a skeleton in the meantime, so there is no white flash
 

@@ -48,6 +48,7 @@
     lastSync: null,
     editorLine: null,   // last line reported by the editor (caret or viewport)
     headings: [],      // { line, el }
+    blocks: [],        // { line, el } for every top level block (dense scroll sync)
     renderedPath: null
   };
 
@@ -353,18 +354,186 @@
   }
 
   // Collect source heading lines so the preview can follow the editor.
-  function collectSourceHeadings(text) {
-    const out = [];
-    let inFence = false;
+  // Headings come from the block scan so setext headings (text underlined with
+  // === or ---) land in the table of contents as well.
+  function collectSourceHeadings(text, blocks) {
     const lines = text.split(/\r\n|\r|\n/);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (/^\s{0,3}(```|~~~)/.test(line)) { inFence = !inFence; continue; }
-      if (inFence) continue;
-      const m = /^\s{0,3}(#{1,6})\s+(\S.*?)\s*#*\s*$/.exec(line);
-      if (m) out.push({ line: i, level: m[1].length, text: m[2] });
+    const out = [];
+    const scan = blocks || collectSourceBlocks(text);
+    for (let k = 0; k < scan.length; k++) {
+      const b = scan[k];
+      if (b.kind !== 'heading') continue;
+      const line = lines[b.line] || '';
+      const m = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+      if (m) { out.push({ line: b.line, level: m[1].length, text: m[2] }); continue; }
+      const underline = (lines[b.line + 1] || '').trim();
+      out.push({ line: b.line, level: underline.charAt(0) === '=' ? 1 : 2, text: line.trim() });
     }
     return out;
+  }
+
+  // Every top level block with the source line it starts on.  Headings alone are
+  // too sparse: a single section can hold a table, a code block and three
+  // paragraphs, and interpolating over the whole section drifts by screens.
+  function collectSourceBlocks(text) {
+    const lines = text.split(/\r\n|\r|\n/);
+    const n = lines.length;
+    const out = [];
+    const blank = (v) => /^\s*$/.test(v);
+    const atx = /^ {0,3}#{1,6}\s+/;
+    const fence = /^ {0,3}(`{3,}|~{3,})/;
+    const setext = /^ {0,3}(=+|-+)\s*$/;
+    const hr = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
+    const quote = /^ {0,3}>/;
+    const item = /^ {0,3}([-*+]|\d{1,9}[.)])\s+/;
+    const tableSep = /^ {0,3}\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
+    const htmlBlock = /^ {0,3}<([a-zA-Z][\w-]*|\/[a-zA-Z][\w-]*|!)/;
+    const indentOf = (v) => v.length - v.replace(/^ +/, '').length;
+
+    let i = 0;
+    while (i < n) {
+      const line = lines[i];
+      if (blank(line)) { i++; continue; }
+
+      const fm = fence.exec(line);
+      if (fm) {
+        out.push({ line: i, kind: 'code' });
+        const mark = fm[1][0];
+        const len = fm[1].length;
+        const close = new RegExp('^ {0,3}' + (mark === '`' ? '`' : '~') + '{' + len + ',}\\s*$');
+        i++;
+        while (i < n && !close.test(lines[i])) i++;
+        i++;
+        continue;
+      }
+
+      if (atx.test(line)) { out.push({ line: i, kind: 'heading' }); i++; continue; }
+
+      if (i + 1 < n && setext.test(lines[i + 1]) && !hr.test(line) && !item.test(line)) {
+        out.push({ line: i, kind: 'heading' });
+        i += 2;
+        continue;
+      }
+
+      if (hr.test(line)) { out.push({ line: i, kind: 'hr' }); i++; continue; }
+
+      if (quote.test(line)) {
+        out.push({ line: i, kind: 'quote' });
+        i++;
+        while (i < n) {
+          if (blank(lines[i])) break;
+          if (quote.test(lines[i]) || (!atx.test(lines[i]) && !fence.test(lines[i]) && !hr.test(lines[i]))) { i++; continue; }
+          break;
+        }
+        continue;
+      }
+
+      if (item.test(line)) {
+        out.push({ line: i, kind: 'list' });
+        const markerType = function (m) { return /^\d/.test(m) ? 'ol' : m; };
+        const startIndent = indentOf(line);
+        const type = markerType(item.exec(line)[1]);
+        let contentIndent = startIndent + item.exec(line)[1].length + 1;
+        let prevBlank = false;
+        i++;
+        while (i < n) {
+          const l = lines[i];
+          const nm = item.exec(l);
+          if (blank(l)) {
+            // a blank line can separate items of a loose list, or end the list
+            let j = i;
+            while (j < n && blank(lines[j])) j++;
+            if (j < n) {
+              const nl = lines[j];
+              const nn = item.exec(nl);
+              if (nn && indentOf(nl) <= startIndent && markerType(nn[1]) === type) { i = j; prevBlank = true; continue; }
+              if (indentOf(nl) >= contentIndent) { i = j; prevBlank = true; continue; }
+            }
+            break;
+          }
+          if (nm && indentOf(l) <= startIndent) {
+            if (markerType(nm[1]) !== type) break;   // a different marker is a new list
+            contentIndent = indentOf(l) + nm[1].length + 1;
+            prevBlank = false;
+            i++;
+            continue;
+          }
+          if (indentOf(l) >= contentIndent) { prevBlank = false; i++; continue; }
+          if (!prevBlank) { prevBlank = false; i++; continue; }   // lazy continuation
+          break;
+        }
+        continue;
+      }
+
+      // indented code block: four spaces after a blank line
+      if (indentOf(line) >= 4 && (i === 0 || blank(lines[i - 1]))) {
+        out.push({ line: i, kind: 'code' });
+        i++;
+        while (i < n && (blank(lines[i]) || indentOf(lines[i]) >= 4)) i++;
+        continue;
+      }
+
+      if (i + 1 < n && line.indexOf('|') !== -1 && tableSep.test(lines[i + 1])) {
+        out.push({ line: i, kind: 'table' });
+        i += 2;
+        while (i < n && !blank(lines[i])) i++;
+        continue;
+      }
+
+      // a link reference definition renders to nothing on its own
+      if (/^ {0,3}\[[^\]]+\]:/.test(line)) { i++; continue; }
+
+      if (htmlBlock.test(line)) {
+        out.push({ line: i, kind: 'html' });
+        i++;
+        while (i < n && !blank(lines[i])) i++;
+        continue;
+      }
+
+      out.push({ line: i, kind: 'p' });
+      i++;
+      while (i < n) {
+        const l = lines[i];
+        if (blank(l)) break;
+        if (atx.test(l) || fence.test(l) || hr.test(l) || quote.test(l) || item.test(l)) break;
+        if (i + 1 < n && setext.test(lines[i + 1])) break;
+        i++;
+      }
+    }
+    return out;
+  }
+
+  function blockKindOf(el) {
+    const tag = el.tagName;
+    if (/^H[1-6]$/.test(tag)) return 'heading';
+    if (tag === 'P') return 'p';
+    if (tag === 'UL' || tag === 'OL') return 'list';
+    if (tag === 'PRE' || (el.classList && el.classList.contains('codeblock'))) return 'code';
+    if (tag === 'TABLE' || (el.classList && el.classList.contains('table-wrap'))) return 'table';
+    if (tag === 'BLOCKQUOTE') return 'quote';
+    if (tag === 'HR') return 'hr';
+    return 'other';
+  }
+
+  function kindMatches(srcKind, elKind) {
+    if (srcKind === elKind) return true;
+    // raw HTML can turn into a paragraph, a div or something else entirely
+    if (srcKind === 'html' || elKind === 'other') return true;
+    return false;
+  }
+
+  function buildBlockMap(blocks) {
+    state.blocks = [];
+    const children = Array.prototype.slice.call(docEl.children);
+    // Any disagreement means the scan does not mirror the renderer for this
+    // document, so drop the map and fall back to the heading anchors.
+    if (!blocks.length || blocks.length !== children.length) return;
+    for (let i = 0; i < blocks.length; i++) {
+      if (!kindMatches(blocks[i].kind, blockKindOf(children[i]))) return;
+    }
+    const out = new Array(blocks.length);
+    for (let i = 0; i < blocks.length; i++) out[i] = { line: blocks[i].line, el: children[i] };
+    state.blocks = out;
   }
 
   // --------------------------------------------------------- post-process ---
@@ -568,8 +737,8 @@
     }
   }
 
-  function buildHeadingMap(sourceText) {
-    const source = collectSourceHeadings(sourceText);
+  function buildHeadingMap(sourceText, blocks) {
+    const source = collectSourceHeadings(sourceText, blocks);
     const domHeads = Array.prototype.slice.call(docEl.querySelectorAll('h1, h2, h3, h4, h5, h6'));
     state.headings = [];
     if (!source.length || source.length !== domHeads.length) return; // ratio fallback
@@ -640,6 +809,7 @@
       hint.textContent = t('noHeadings');
       tocListEl.appendChild(hint);
       state.headings = [];
+      state.blocks = [];
       updateStatus();
       return;
     }
@@ -680,7 +850,9 @@
     const tFix = performance.now() - tSan0 - tSan;
     const tToc0 = performance.now();
     buildToc();
-    buildHeadingMap(body);
+    const srcBlocks = collectSourceBlocks(body);
+    buildHeadingMap(body, srcBlocks);
+    buildBlockMap(srcBlocks);
     refreshTocLines();
     updateStatus();
     const tToc = performance.now() - tToc0;
@@ -703,7 +875,8 @@
         text: 'render=' + Math.round(performance.now() - renderStart) + 'ms' +
               ' parse=' + Math.round(tParse) + ' sanitize=' + Math.round(tSan) +
               ' fix=' + Math.round(tFix) + ' toc=' + Math.round(tToc) +
-              ' bytes=' + body.length + ' headings=' + state.headings.length
+              ' bytes=' + body.length + ' headings=' + state.headings.length +
+              ' blocks=' + state.blocks.length + '/' + docEl.children.length
       });
     }
   }
@@ -756,6 +929,31 @@
   }
 
   function targetScrollFor(first, total) {
+    const blocks = state.blocks;
+    if (blocks && blocks.length) {
+      let lo = 0;
+      let hi = blocks.length - 1;
+      let idx = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (blocks[mid].line <= first) { idx = mid; lo = mid + 1; } else hi = mid - 1;
+      }
+      if (idx < 0) return 0;
+      const cur = blocks[idx];
+      const yCur = Math.max(0, offsetInScroll(cur.el) - 8);
+      const next = blocks[idx + 1];
+      if (next) {
+        const yNext = Math.max(yCur, offsetInScroll(next.el) - 8);
+        const span = Math.max(1, next.line - cur.line);
+        const frac = Math.min(1, Math.max(0, (first - cur.line) / span));
+        return yCur + frac * (yNext - yCur);
+      }
+      const span = Math.max(1, total - cur.line);
+      const frac = Math.min(1, Math.max(0, (first - cur.line) / span));
+      const docEnd = Math.max(yCur, scrollEl.scrollHeight - scrollEl.clientHeight);
+      return yCur + frac * (docEnd - yCur);
+    }
+
     const heads = state.headings;
     if (!heads.length) {
       const ratio = Math.min(1, first / Math.max(1, total - 1));
