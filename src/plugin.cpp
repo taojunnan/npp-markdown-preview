@@ -850,14 +850,16 @@ static void ScheduleRender() {
 
 // Tells the panel which source line the caret sits on, so the TOC can follow
 // the editor instead of only the scroll position.
-static void SendCaretLine(bool force) {
+static void SendCaretLine() {
     if (!g_panel || !g_web || !g_web->IsReady() || !IsWindowVisible(g_panel)) return;
     ULONGLONG now = GetTickCount64();
-    if (!force && now - g_lastCaretTick < 120) return;
+    if (now - g_lastCaretTick < 120) return;
     g_lastCaretTick = now;
 
     HWND sci = CurrentScintilla();
     if (!sci) return;
+    // Always the caret line: jumping the caret also scrolls the view, and the
+    // first visible line would then point at a section above the caret.
     LRESULT pos = SendMessageW(sci, SCI_GETCURRENTPOS, 0, 0);
     LRESULT line = SendMessageW(sci, SCI_LINEFROMPOSITION, (WPARAM)pos, 0);
     wchar_t msg[64] = {};
@@ -1102,7 +1104,7 @@ static void CmdPrint() {
 
 static void CmdAbout() {
     std::wstring text = mdtr::English()
-        ? std::wstring(L"Markdown Preview v1.2.0\n\n"
+        ? std::wstring(L"Markdown Preview v1.2.1\n\n"
                        L"A live, dockable Markdown preview for Notepad++:\n"
                        L"\u2022 GitHub-style typography, tables / task lists / strikethrough\n"
                        L"\u2022 Syntax highlighting with one-click copy\n"
@@ -1112,7 +1114,7 @@ static void CmdAbout() {
                        L"Renderer: Microsoft Edge WebView2 (installed)\n"
                        L"Shortcuts: Ctrl+Alt+P toggles the panel, Ctrl+Alt+R refreshes\n\n"
                        L"Config file:\n")
-        : std::wstring(L"Markdown 预览 v1.2.0\n\n"
+        : std::wstring(L"Markdown 预览 v1.2.1\n\n"
                        L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
                        L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
                        L"• 代码语法高亮，一键复制\n"
@@ -1467,8 +1469,11 @@ extern "C" __declspec(dllexport) void beNotified(SCNotification* notification) {
         return;
     }
     if (notification->nmhdr.code == SCN_UPDATEUI) {
-        if (notification->updated & SC_UPDATE_V_SCROLL) SendScrollSync(false);
-        if (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL)) SendCaretLine(false);
+        if (notification->updated & SC_UPDATE_V_SCROLL) {
+            SendScrollSync(false);
+            SendCaretLine();
+        }
+        if (notification->updated & SC_UPDATE_SELECTION) SendCaretLine();
         return;
     }
 }

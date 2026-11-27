@@ -46,6 +46,7 @@
     sync: true,
     truncated: false,
     lastSync: null,
+    editorLine: null,   // last line reported by the editor (caret or viewport)
     headings: [],      // { line, el }
     renderedPath: null
   };
@@ -59,6 +60,15 @@
     if (tocUpdateFrame) return;
     tocUpdateFrame = requestAnimationFrame(function () {
       tocUpdateFrame = 0;
+      // After a re-render the heading lines moved; re-apply the editor position
+      // instead of guessing from the scroll offset.
+      if (state.editorLine !== null && state.editorLine !== undefined && tocLines.length) {
+        const idx = tocIndexForLine(state.editorLine);
+        if (idx >= 0) {
+          highlightTocIndex(idx);
+          return;
+        }
+      }
       updateActiveToc(true);
     });
   }
@@ -699,8 +709,18 @@
 
   let syncFrame = null;
 
+  // Scrolls the panel performs on its own (scroll sync, TOC jumps) must not be
+  // read back as "the user scrolled", or they overwrite the caret highlight.
+  // Cleared by real input, not by a timer, so a slow layout cannot sneak in.
+  let programmaticScroll = false;
+
+  function markProgrammaticScroll() {
+    programmaticScroll = true;
+  }
+
   function applySync(msg, immediate) {
     if (!state.sync) return;
+    markProgrammaticScroll();
     state.lastSync = msg;
     tocPinIndex = -1;
 
@@ -713,7 +733,10 @@
       if (y === null) return;
       const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
       scrollEl.scrollTop = Math.min(max, Math.max(0, y));
-      updateActiveToc();
+      // Deliberately no TOC update here: this scroll came from the editor, and
+      // the caret/viewport message that accompanied it already picked the item.
+      // Recomputing from the scroll offset is what made the highlight jump to a
+      // neighbouring heading after every edit.
     };
     if (immediate) run();
     else syncFrame = requestAnimationFrame(run);
@@ -760,6 +783,7 @@
     if (!id) return;
     const el = document.getElementById(id);
     if (!el) return;
+    markProgrammaticScroll();
     scrollEl.scrollTo({ top: Math.max(0, offsetInScroll(el) - 10), behavior: 'smooth' });
   }
 
@@ -859,12 +883,15 @@
   scrollEl.addEventListener('scroll', function () {
     // A pinned item survives the smooth scroll that the click started; it is
     // released by real input (wheel / keys / drag) or by editor-driven sync.
+    if (programmaticScroll) return;
+    state.editorLine = null;
     updateActiveToc();
   }, { passive: true });
 
   ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (evt) {
     scrollEl.addEventListener(evt, function () {
       tocPinIndex = -1;
+      programmaticScroll = false;
     }, { passive: true });
   });
 
@@ -1123,11 +1150,14 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
 
     switch (msg.type) {
       case 'caret': {
-        if (typeof msg.line === 'number' && tocLines.length) {
-          const idx = tocIndexForLine(msg.line);
-          if (idx >= 0) {
-            tocPinIndex = -1;
-            highlightTocIndex(idx);
+        if (typeof msg.line === 'number') {
+          state.editorLine = msg.line;
+          if (tocLines.length) {
+            const idx = tocIndexForLine(msg.line);
+            if (idx >= 0) {
+              tocPinIndex = -1;
+              highlightTocIndex(idx);
+            }
           }
         }
         break;
