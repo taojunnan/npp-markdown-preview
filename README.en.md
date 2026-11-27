@@ -24,12 +24,13 @@ English UI (set `language=en`):
 - **Tables, task lists, footnotes, strikethrough** — fully supported; wide tables scroll horizontally
 - **Local images** — relative paths resolve against the Markdown file's folder; absolute paths, SVG and emoji work too
 - **Table of contents** — auto-generated on the left, highlights the current section while scrolling, click to jump
-- **Jump back to source** — click any heading in the preview and the editor caret moves to that line
+- **Jump back to source** — click any heading in the preview and the editor caret moves to that line; move the caret in the editor and the table of contents follows
 - **Scroll sync** — editor → preview is interpolated by heading lines; preview → editor works too
 - **Themes** — light / dark / follow editor, one click from the panel toolbar
 - **Bilingual UI** — follows the system language, or pin it in the config file
 - **Export** — HTML (single file, images inlined), PDF, print
 - **Light on resources** — the panel starts closed and idle; nothing runs until you open it. The browser processes are released 30 s after the panel is hidden (~180 MB back)
+- **Handles large documents** — the render path adapts to the document size, so a few hundred KB still types smoothly (measurements below)
 
 The panel is toggled from the `M` button at the far right of the toolbar:
 
@@ -242,9 +243,30 @@ Front-end libraries (marked, DOMPurify, highlight.js, KaTeX, github-markdown-css
 - PDF export uses `ICoreWebView2_7::PrintToPdf`; HTML export inlines images as data URIs
 - On a cold start the WebView2 window stays hidden until its first frame is ready; the host window paints a skeleton in the meantime, so there is no white flash
 
+## Performance
+
+Rendering is a full redraw: after you stop typing the whole document is parsed again. Four things keep
+large files usable:
+
+- the debounce scales with the document (< 256 KB 120 ms, < 2 MB 250 ms, larger 400 ms)
+- above 300 KB syntax highlighting is skipped (code blocks stay monospaced, just uncoloured)
+- DOMPurify produces a DOM fragment that is inserted directly, instead of "clean to string → parse again"
+- the TOC hit-test uses cached heading offsets plus a binary search instead of walking every heading
+
+Measured on an i5 machine at 125 % scaling (same generated Markdown; the second column is a re-render
+triggered by typing):
+
+| Document | First render | Re-render while typing |
+| --- | --- | --- |
+| 1.6 KB (sample) | 0.33 s | 13 ms |
+| 380 KB | 1.18 s | 0.44 s |
+| 950 KB | 2.28 s | 0.99 s |
+| 1.7 MB | 4.56 s | 2.53 s |
+
+With `debug=1` the log records the `render=` / `parse=` / `sanitize=` breakdown for every render.
 ## Known limitations
 
-- One WebView2 profile per config directory: a second Notepad++ instance cannot share it (the panel explains this; close the other window and retry)
+- Several Notepad++ instances can each open a preview; if the WebView2 runtime is old and the shared profile is taken, the plugin retries with a per-process profile automatically
 - ~180 MB while the panel is open (inherent to a Chromium engine); released 30 s after it is hidden
 - x64 only
 

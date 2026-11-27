@@ -56,6 +56,8 @@ static void ApplyLanguage() {
 }
 #define kPluginName g_pluginName.c_str()
 #define kPanelTitle g_panelTitle.c_str()
+
+static void CleanupStaleProfiles();
 static const wchar_t* kDllModuleName = L"MarkdownPreview.dll";
 
 NppData nppData = {};
@@ -412,6 +414,7 @@ void HandleWebMessage(const std::wstring& json);
 static const UINT kReleaseDelayMs = 30000;  // give the memory back after 30 s hidden
 static bool g_checkUpdatePending = false;
 static ULONGLONG g_webStartTick = 0;
+static ULONGLONG g_lastCaretTick = 0;
 
 static void PostToggleChecks() {
     if (!g_panel || g_checkUpdatePending) return;
@@ -622,6 +625,7 @@ static void EnsureWebView(bool quiet) {
         if (!ok) MessageBoxW(nppData._nppHandle, mdtr::T(L"PDF 导出失败。", L"PDF export failed."), kPluginName, MB_ICONWARNING | MB_OK);
     };
 
+    CleanupStaleProfiles();
     std::wstring userData = g_configDir + L"\\WebView2";
     CreateDirectoryW(userData.c_str(), nullptr);
 
@@ -638,6 +642,61 @@ static void EnsureWebView(bool quiet) {
 // very first "show panel" take a second or two.  When a Markdown buffer is
 // active the runtime is prepared in the background, so the panel opens with the
 // document already rendered.
+// Profiles created for a second Notepad++ process are named WebView2-<pid>.
+// Remove the ones whose process is gone so they do not pile up.
+static void RemoveTree(const std::wstring& dir) {
+    WIN32_FIND_DATAW fd = {};
+    HANDLE h = FindFirstFileW((dir + L"\\*").c_str(), &fd);
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) continue;
+            std::wstring child = dir + L"\\" + fd.cFileName;
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                RemoveTree(child);
+            } else {
+                SetFileAttributesW(child.c_str(), FILE_ATTRIBUTE_NORMAL);
+                DeleteFileW(child.c_str());
+            }
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    RemoveDirectoryW(dir.c_str());
+}
+
+static void CleanupStaleProfiles() {
+    static bool done = false;
+    if (done || g_configDir.empty()) return;
+    done = true;
+
+    WIN32_FIND_DATAW fd = {};
+    HANDLE h = FindFirstFileW((g_configDir + L"\\WebView2-*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+        const wchar_t* suffix = fd.cFileName + 9;  // past "WebView2-"
+        if (!*suffix) continue;
+        bool digits = true;
+        for (const wchar_t* p = suffix; *p; ++p) {
+            if (*p < L'0' || *p > L'9') { digits = false; break; }
+        }
+        if (!digits) continue;
+
+        DWORD pid = (DWORD)wcstoul(suffix, nullptr, 10);
+        bool alive = false;
+        HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (proc) {
+            DWORD code = 0;
+            alive = GetExitCodeProcess(proc, &code) && code == STILL_ACTIVE;
+            CloseHandle(proc);
+        }
+        if (alive) continue;
+
+        std::wstring dir = g_configDir + L"\\" + fd.cFileName;
+        mdlog::Line(L"removing stale profile %s", dir.c_str());
+        RemoveTree(dir);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
 static void WarmUpWebView() {
     if (!g_cfg.preload || g_startup || g_webFailed || !g_panel) return;
     if (g_web && g_web->IsReady()) return;
@@ -741,8 +800,18 @@ static std::wstring BuildContentJson(const std::wstring& text, const std::wstrin
     json += truncated ? L"true" : L"false";
     json += L",\"lang\":";
     json += mdtr::English() ? L"\"en\"" : L"\"zh\"";
+    json += L",\"debug\":";
+    json += g_cfg.debug ? L"true" : L"false";
     json += L"}";
     return json;
+}
+
+// Parsing and sanitising a multi-megabyte document takes a while, so wait a bit
+// longer before starting; short documents keep the immediate feel.
+static UINT RenderDebounceMs(int bytes) {
+    if (bytes > 2 * 1024 * 1024) return 400;
+    if (bytes > 256 * 1024) return 250;
+    return 120;
 }
 
 static void RenderNow(bool force) {
@@ -774,7 +843,26 @@ static void RenderNow(bool force) {
 
 static void ScheduleRender() {
     if (!g_panel) return;
-    SetTimer(g_panel, TIMER_RENDER_DEBOUNCE, 120, nullptr);
+    HWND sci = CurrentScintilla();
+    int bytes = sci ? (int)SendMessageW(sci, SCI_GETLENGTH, 0, 0) : 0;
+    SetTimer(g_panel, TIMER_RENDER_DEBOUNCE, RenderDebounceMs(bytes), nullptr);
+}
+
+// Tells the panel which source line the caret sits on, so the TOC can follow
+// the editor instead of only the scroll position.
+static void SendCaretLine(bool force) {
+    if (!g_panel || !g_web || !g_web->IsReady() || !IsWindowVisible(g_panel)) return;
+    ULONGLONG now = GetTickCount64();
+    if (!force && now - g_lastCaretTick < 120) return;
+    g_lastCaretTick = now;
+
+    HWND sci = CurrentScintilla();
+    if (!sci) return;
+    LRESULT pos = SendMessageW(sci, SCI_GETCURRENTPOS, 0, 0);
+    LRESULT line = SendMessageW(sci, SCI_LINEFROMPOSITION, (WPARAM)pos, 0);
+    wchar_t msg[64] = {};
+    wsprintfW(msg, L"{\"type\":\"caret\",\"line\":%d}", (int)line);
+    g_web->PostJson(msg);
 }
 
 static void SendScrollSync(bool force) {
@@ -1014,7 +1102,7 @@ static void CmdPrint() {
 
 static void CmdAbout() {
     std::wstring text = mdtr::English()
-        ? std::wstring(L"Markdown Preview v1.1.0\n\n"
+        ? std::wstring(L"Markdown Preview v1.2.0\n\n"
                        L"A live, dockable Markdown preview for Notepad++:\n"
                        L"\u2022 GitHub-style typography, tables / task lists / strikethrough\n"
                        L"\u2022 Syntax highlighting with one-click copy\n"
@@ -1024,7 +1112,7 @@ static void CmdAbout() {
                        L"Renderer: Microsoft Edge WebView2 (installed)\n"
                        L"Shortcuts: Ctrl+Alt+P toggles the panel, Ctrl+Alt+R refreshes\n\n"
                        L"Config file:\n")
-        : std::wstring(L"Markdown 预览 v1.1.0\n\n"
+        : std::wstring(L"Markdown 预览 v1.2.0\n\n"
                        L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
                        L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
                        L"• 代码语法高亮，一键复制\n"
@@ -1380,6 +1468,7 @@ extern "C" __declspec(dllexport) void beNotified(SCNotification* notification) {
     }
     if (notification->nmhdr.code == SCN_UPDATEUI) {
         if (notification->updated & SC_UPDATE_V_SCROLL) SendScrollSync(false);
+        if (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL)) SendCaretLine(false);
         return;
     }
 }

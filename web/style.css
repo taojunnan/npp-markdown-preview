@@ -862,8 +862,14 @@ body.print-mode .h-anchor { display: none !important; }
     line-height: 1.65;
   }
 
-  #doc h1, #doc h2, #doc h3 { page-break-after: avoid; break-after: avoid; }
-  #doc pre, #doc table, #doc img, #doc blockquote { page-break-inside: avoid; break-inside: avoid; }
+  #doc h1, #doc h2, #doc h3, #doc h4 { page-break-after: avoid; break-after: avoid; }
+  /* keep a whole code block (header + body) and a whole table together */
+  #doc pre, #doc .codeblock, #doc table, #doc .table-wrap, #doc img, #doc blockquote {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  #doc p, #doc li { orphans: 2; widows: 2; }
+  #doc table { width: 100% !important; }
   #doc img { max-height: 88vh; }
   #doc a { color: #000; text-decoration: underline; }
 

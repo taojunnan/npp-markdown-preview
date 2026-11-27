@@ -140,63 +140,6 @@ IStream* StreamFromBytes(const std::vector<BYTE>& data) {
 
 // -------------------------------------------------------- environment opts --
 
-class EnvOptions : public ICoreWebView2EnvironmentOptions {
-public:
-    explicit EnvOptions(const std::wstring& args) : args_(args) {}
-
-    // IUnknown
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
-        if (!ppv) return E_POINTER;
-        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ICoreWebView2EnvironmentOptions)) {
-            *ppv = static_cast<ICoreWebView2EnvironmentOptions*>(this);
-            AddRef();
-            return S_OK;
-        }
-        *ppv = nullptr;
-        return E_NOINTERFACE;
-    }
-    ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)InterlockedIncrement(&ref_); }
-    ULONG STDMETHODCALLTYPE Release() override {
-        LONG r = InterlockedDecrement(&ref_);
-        if (r == 0) delete this;
-        return (ULONG)r;
-    }
-
-    HRESULT STDMETHODCALLTYPE get_AdditionalBrowserArguments(LPWSTR* value) override {
-        return CopyOut(args_, value);
-    }
-    HRESULT STDMETHODCALLTYPE put_AdditionalBrowserArguments(LPCWSTR value) override {
-        args_ = value ? value : L"";
-        return S_OK;
-    }
-    HRESULT STDMETHODCALLTYPE get_Language(LPWSTR* value) override { return CopyOut(L"", value); }
-    HRESULT STDMETHODCALLTYPE put_Language(LPCWSTR) override { return S_OK; }
-    HRESULT STDMETHODCALLTYPE get_TargetCompatibleBrowserVersion(LPWSTR* value) override {
-        return CopyOut(L"", value);
-    }
-    HRESULT STDMETHODCALLTYPE put_TargetCompatibleBrowserVersion(LPCWSTR) override { return S_OK; }
-    HRESULT STDMETHODCALLTYPE get_AllowSingleSignOnUsingOSPrimaryAccount(BOOL* allow) override {
-        if (!allow) return E_POINTER;
-        *allow = FALSE;
-        return S_OK;
-    }
-    HRESULT STDMETHODCALLTYPE put_AllowSingleSignOnUsingOSPrimaryAccount(BOOL) override { return S_OK; }
-
-private:
-    static HRESULT CopyOut(const std::wstring& s, LPWSTR* out) {
-        if (!out) return E_POINTER;
-        size_t bytes = (s.size() + 1) * sizeof(wchar_t);
-        LPWSTR mem = (LPWSTR)CoTaskMemAlloc(bytes);
-        if (!mem) return E_OUTOFMEMORY;
-        memcpy(mem, s.c_str(), bytes);
-        *out = mem;
-        return S_OK;
-    }
-
-    LONG ref_ = 1;
-    std::wstring args_;
-};
-
 // ------------------------------------------------------------ COM handlers --
 // One small class per WebView2 event/callback: a std::function plus standard
 // IUnknown plumbing. Written by hand so that no WRL is required.
@@ -342,6 +285,10 @@ struct WebViewHost::Impl {
     int height = 0;
     std::wstring docFolder;
     std::wstring webRoot;
+    std::wstring userDataDir;   // profile folder, may switch to a per-process one
+    bool triedFallback = false;
+
+    HRESULT StartEnvironment();
 
     void Fail(const std::wstring& text) {
         failed = true;
@@ -674,40 +621,57 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
         return false;
     }
 
-    // Keep the embedded browser quiet and predictable.
-    EnvOptions* options = new EnvOptions(
-        L"--disable-features=msWebOOUI,msPdfOOUI --disable-background-networking --no-first-run");
-
-    EnvHandler::Fn fn = [this](HRESULT hr, ICoreWebView2Environment* env) -> HRESULT {
-        WV_TRACE("[wv] env hr=0x%08lx\n", (unsigned long)hr);
-        mdlog::Line(L"environment hr=0x%08lx", (unsigned long)hr);
-        if (FAILED(hr) || !env) {
-            impl_->Fail(mdtr::English()
-                ? L"Could not create a WebView2 environment.\n\n"
-                  L"Two common causes:\n"
-                  L"\u2022 The \u201cMicrosoft Edge WebView2 Runtime\u201d is missing (usually preinstalled on Windows 10/11; otherwise install the Evergreen runtime from Microsoft);\n"
-                  L"\u2022 Another Notepad++ window is already using the same preview profile — close it and retry."
-                : L"无法创建 WebView2 环境。\n\n"
-                  L"常见原因有两个：\n"
-                  L"• 系统缺少 “Microsoft Edge WebView2 运行时”（Windows 10/11 通常已自带，"
-                  L"可从微软官网下载 Evergreen 版本）；\n"
-                  L"• 已经有一个 Notepad++ 窗口在使用同一个预览配置目录——关掉其它窗口后重试即可。");
-            return hr;
-        }
-        env->AddRef();
-        impl_->env = env;
-        return impl_->CreateController();
-    };
-    EnvHandler* handler = new EnvHandler(fn);
-    HRESULT hr = impl_->createEnv(nullptr, userDataDir.c_str(), nullptr, handler);
-    handler->Release();
-    options->Release();
+    impl_->userDataDir = userDataDir;
+    HRESULT hr = impl_->StartEnvironment();
+    if (FAILED(hr) && !impl_->triedFallback) {
+        impl_->triedFallback = true;
+        impl_->userDataDir += L"-" + std::to_wstring((unsigned long)GetCurrentProcessId());
+        mdlog::Line(L"shared profile unavailable (0x%08lx), retrying with %s", (unsigned long)hr, impl_->userDataDir.c_str());
+        hr = impl_->StartEnvironment();
+    }
 
     if (FAILED(hr)) {
-        impl_->Fail((mdtr::English() ? L"Creating the WebView2 environment failed (HRESULT 0x" : L"WebView2 环境创建调用失败（HRESULT 0x") + std::to_wstring((unsigned)hr) + L").");
+        wchar_t code[16] = {};
+        wsprintfW(code, L"%08lX", (unsigned long)hr);
+        mdlog::Line(L"environment creation failed: 0x%s", code);
+        impl_->Fail((mdtr::English() ? L"Creating the WebView2 environment failed (HRESULT 0x" : L"WebView2 环境创建调用失败（HRESULT 0x") + std::wstring(code) + L").");
         return false;
     }
     return true;
+}
+
+// Starts (or restarts) the WebView2 environment.  When the shared profile is
+// already owned by another Notepad++ process the creation fails, so the second
+// attempt uses a per-process profile instead of making the user close windows.
+HRESULT WebViewHost::Impl::StartEnvironment() {
+    EnvHandler::Fn fn = [this](HRESULT hr, ICoreWebView2Environment* env) -> HRESULT {
+        WV_TRACE("[wv] env hr=0x%08lx\n", (unsigned long)hr);
+        mdlog::Line(L"environment hr=0x%08lx profile=%s", (unsigned long)hr, userDataDir.c_str());
+        if (FAILED(hr) || !env) {
+            if (!triedFallback) {
+                triedFallback = true;
+                userDataDir += L"-" + std::to_wstring((unsigned long)GetCurrentProcessId());
+                mdlog::Line(L"shared profile unavailable, retrying with %s", userDataDir.c_str());
+                HRESULT retry = StartEnvironment();
+                if (SUCCEEDED(retry)) return S_OK;
+            }
+            Fail(mdtr::English()
+                ? L"Could not create a WebView2 environment.\n\n"
+                  L"The most likely cause is a missing \u201cMicrosoft Edge WebView2 Runtime\u201d "
+                  L"(usually preinstalled on Windows 10/11; otherwise install the Evergreen runtime from Microsoft)."
+                : L"无法创建 WebView2 环境。\n\n"
+                  L"最常见的原因是系统缺少 “Microsoft Edge WebView2 运行时”"
+                  L"（Windows 10/11 通常已自带，可从微软官网下载 Evergreen 版本）。");
+            return hr;
+        }
+        env->AddRef();
+        this->env = env;
+        return CreateController();
+    };
+    EnvHandler* handler = new EnvHandler(fn);
+    HRESULT hr = createEnv(nullptr, userDataDir.c_str(), nullptr, handler);
+    handler->Release();
+    return hr;
 }
 
 void WebViewHost::Destroy() {

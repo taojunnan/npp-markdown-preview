@@ -50,6 +50,19 @@
     renderedPath: null
   };
 
+  let tocOffsets = null;      // cached heading offsets, invalidated on re-render
+  let tocLines = [];          // source line of every TOC entry
+  let activeTocIndex = -1;
+  let tocUpdateFrame = 0;
+
+  function scheduleTocUpdate() {
+    if (tocUpdateFrame) return;
+    tocUpdateFrame = requestAnimationFrame(function () {
+      tocUpdateFrame = 0;
+      updateActiveToc(true);
+    });
+  }
+
   const $ = function (id) { return document.getElementById(id); };
   const docEl = $('doc');
   const scrollEl = $('scroll');
@@ -296,13 +309,28 @@
     return true;
   }
 
+  const SANITIZE_OPTS = {
+    ADD_ATTR: ['target', 'align', 'colspan', 'rowspan'],
+    ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mtext'],
+    USE_PROFILES: { html: true, svg: true, mathMl: true }
+  };
+
   function sanitize(html) {
     if (typeof DOMPurify === 'undefined') return html;
-    return DOMPurify.sanitize(html, {
-      ADD_ATTR: ['target', 'align', 'colspan', 'rowspan'],
-      ADD_TAGS: ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'mtext'],
-      USE_PROFILES: { html: true, svg: true, mathMl: true }
-    });
+    return DOMPurify.sanitize(html, SANITIZE_OPTS);
+  }
+
+  // Same sanitising pass, but returns nodes we can insert directly.  On a large
+  // document this avoids serialising the cleaned HTML back to a string and
+  // parsing it a second time (that round trip used to cost seconds).
+  function sanitizeInto(el, html) {
+    el.textContent = '';
+    if (typeof DOMPurify === 'undefined') {
+      el.innerHTML = html;
+      return;
+    }
+    const frag = DOMPurify.sanitize(html, Object.assign({}, SANITIZE_OPTS, { RETURN_DOM_FRAGMENT: true }));
+    el.appendChild(frag);
   }
 
   function slugify(text, index) {
@@ -415,7 +443,12 @@
     });
   }
 
+  // Highlighting a large document costs more than it is worth; the code blocks
+  // keep their monospace styling, just without colours.
+  const BIG_DOC_BYTES = 300 * 1024;
+
   function fixCodeBlocks() {
+    const bigDoc = (state.text || '').length > BIG_DOC_BYTES;
     const codes = Array.prototype.slice.call(docEl.querySelectorAll('pre > code'));
     codes.forEach(function (code) {
       const pre = code.parentNode;
@@ -427,7 +460,7 @@
         if (code.classList[i].indexOf('language-') === 0) { lang = code.classList[i].slice(9); break; }
       }
 
-      if (typeof hljs !== 'undefined') {
+      if (typeof hljs !== 'undefined' && !bigDoc) {
         try {
           if (lang && hljs.getLanguage(lang)) {
             code.innerHTML = hljs.highlight(code.textContent, { language: lang, ignoreIllegals: true }).value;
@@ -515,6 +548,15 @@
     });
   }
 
+  function refreshTocLines() {
+    tocLines = [];
+    const heads = docEl.querySelectorAll('h1, h2, h3, h4');
+    for (let i = 0; i < heads.length; i++) {
+      const line = parseInt(heads[i].dataset.line, 10);
+      tocLines.push(isNaN(line) ? -1 : line);
+    }
+  }
+
   function buildHeadingMap(sourceText) {
     const source = collectSourceHeadings(sourceText);
     const domHeads = Array.prototype.slice.call(docEl.querySelectorAll('h1, h2, h3, h4, h5, h6'));
@@ -547,6 +589,7 @@
 
   function render(text, meta) {
     const seq = ++renderSeq;
+    const renderStart = performance.now();
     document.documentElement.classList.remove('booting');
     state.text = text || '';
     if (meta) {
@@ -593,6 +636,7 @@
     }
 
     let html = '';
+    const tParse0 = performance.now();
     try {
       html = marked.parse(body, { async: false });
     } catch (err) {
@@ -601,10 +645,15 @@
       return;
     }
     if (seq !== renderSeq) return; // a newer render started
+    const tParse = performance.now() - tParse0;
 
     const prevFirst = state.lastSync ? state.lastSync.first : null;
 
-    docEl.innerHTML = sanitize(html);
+    tocOffsets = null;
+    activeTocIndex = -1;
+    const tSan0 = performance.now();
+    sanitizeInto(docEl, html);
+    const tSan = performance.now() - tSan0;
     tocPinIndex = -1;
 
     fixHeadings();
@@ -613,9 +662,13 @@
     fixCodeBlocks();
     fixTables();
     fixTaskLists();
+    const tFix = performance.now() - tSan0 - tSan;
+    const tToc0 = performance.now();
     buildToc();
     buildHeadingMap(body);
+    refreshTocLines();
     updateStatus();
+    const tToc = performance.now() - tToc0;
 
     // restore the reading position after re-render
     if (pathChanged) {
@@ -623,7 +676,19 @@
     } else if (prevFirst !== null) {
       applySync({ first: prevFirst, total: lastSyncTotal() , visible: 0 }, true);
     }
-    updateActiveToc();
+    // The TOC hit-test needs a full layout; keep it out of the render path and
+    // let it run once the frame has been produced.
+    scheduleTocUpdate();
+
+    if (meta && meta.debug) {
+      post({
+        type: 'timing',
+        text: 'render=' + Math.round(performance.now() - renderStart) + 'ms' +
+              ' parse=' + Math.round(tParse) + ' sanitize=' + Math.round(tSan) +
+              ' fix=' + Math.round(tFix) + ' toc=' + Math.round(tToc) +
+              ' bytes=' + body.length + ' headings=' + state.headings.length
+      });
+    }
   }
 
   function lastSyncTotal() {
@@ -701,13 +766,25 @@
   let tocTick = 0;
   let tocPinIndex = -1;     // item picked from the TOC, kept until the user scrolls
 
+  function buildTocOffsets() {
+    const heads = docEl.querySelectorAll('h1, h2, h3, h4');
+    const base = scrollEl.getBoundingClientRect().top - scrollEl.scrollTop;
+    const out = new Float64Array(heads.length);
+    for (let i = 0; i < heads.length; i++) {
+      out[i] = heads[i].getBoundingClientRect().top - base;
+    }
+    tocOffsets = out;
+    return out;
+  }
+
   function updateActiveToc(force) {
     const now = Date.now();
     if (!force && now - tocTick < 60) return;
     tocTick = now;
     const items = tocListEl.querySelectorAll('.toc-item');
     if (!items.length) return;
-    const heads = Array.prototype.slice.call(docEl.querySelectorAll('h1, h2, h3, h4'));
+    const offsets = tocOffsets || buildTocOffsets();
+    const heads = { length: offsets.length };
     if (!heads.length) return;
 
     const maxScroll = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
@@ -721,10 +798,15 @@
       line = scrollEl.scrollTop + Math.max(24, Math.min(clientHeight * 0.4, 180));
     }
 
+    // Binary search the cached offsets: the old linear scan read layout for
+    // every heading and dominated scroll cost on long documents.
     let active = 0;
-    for (let i = 0; i < heads.length; i++) {
-      if (offsetInScroll(heads[i]) <= line) active = i;
-      else break;
+    let lo = 0;
+    let hi = offsets.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (offsets[mid] <= line) { active = mid; lo = mid + 1; }
+      else hi = mid - 1;
     }
 
     // Pinned to the very bottom: the last section is what is being read.
@@ -733,8 +815,22 @@
     // A heading chosen in the TOC stays highlighted until the user scrolls.
     if (tocPinIndex >= 0 && tocPinIndex < heads.length) active = tocPinIndex;
 
-    items.forEach(function (it, i) { it.classList.toggle('active', i === active); });
-    const act = items[active];
+    highlightTocIndex(active);
+  }
+
+  function highlightTocIndex(index) {
+    const items = tocListEl.querySelectorAll('.toc-item');
+    if (!items.length) return;
+    if (index >= items.length) index = items.length - 1;
+    if (index < 0) index = 0;
+    if (index !== activeTocIndex) {
+      const prev = items[activeTocIndex];
+      if (prev) prev.classList.remove('active');
+      const next = items[index];
+      if (next) next.classList.add('active');
+      activeTocIndex = index;
+    }
+    const act = items[index];
     if (act && act.scrollIntoView) {
       // keep the active item visible inside the TOC only
       const r = act.getBoundingClientRect();
@@ -743,6 +839,16 @@
         act.scrollIntoView({ block: 'nearest' });
       }
     }
+  }
+
+  // Last TOC entry whose heading starts at or above the caret line.
+  function tocIndexForLine(line) {
+    let idx = -1;
+    for (let i = 0; i < tocLines.length; i++) {
+      if (tocLines[i] >= 0 && tocLines[i] <= line) idx = i;
+      else if (tocLines[i] > line) break;
+    }
+    return idx;
   }
 
   function pinTocItem(index) {
@@ -778,6 +884,7 @@
   }
 
   function applyFontSize(size, persist) {
+    tocOffsets = null;
     const s = Math.min(28, Math.max(11, size | 0));
     state.fontSize = s;
     document.documentElement.style.setProperty('--doc-font', s + 'px');
@@ -1015,6 +1122,16 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
     if (!msg || !msg.type) return;
 
     switch (msg.type) {
+      case 'caret': {
+        if (typeof msg.line === 'number' && tocLines.length) {
+          const idx = tocIndexForLine(msg.line);
+          if (idx >= 0) {
+            tocPinIndex = -1;
+            highlightTocIndex(idx);
+          }
+        }
+        break;
+      }
       case 'content': {
         render(msg.text || '', {
           path: msg.path || '',
@@ -1024,7 +1141,8 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
           fontSize: typeof msg.fontSize === 'number' ? msg.fontSize : undefined,
           toc: typeof msg.toc === 'boolean' ? msg.toc : undefined,
           sync: typeof msg.sync === 'boolean' ? msg.sync : undefined,
-          lang: typeof msg.lang === 'string' ? msg.lang : undefined
+          lang: typeof msg.lang === 'string' ? msg.lang : undefined,
+          debug: msg.debug === true
         });
         break;
       }
@@ -1221,6 +1339,7 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
   });
 
   window.addEventListener('resize', function () {
+    tocOffsets = null;
     if (!isNarrow()) document.body.classList.remove('toc-open');
     applyToc(false);
   });
