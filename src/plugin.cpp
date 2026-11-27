@@ -1126,7 +1126,7 @@ static void CmdPrint() {
 
 static void CmdAbout() {
     std::wstring text = mdtr::English()
-        ? std::wstring(L"Markdown Preview v1.3.1\n\n"
+        ? std::wstring(L"Markdown Preview v1.3.2\n\n"
                        L"A live, dockable Markdown preview for Notepad++:\n"
                        L"\u2022 GitHub-style typography, tables / task lists / strikethrough\n"
                        L"\u2022 Syntax highlighting with one-click copy\n"
@@ -1136,7 +1136,7 @@ static void CmdAbout() {
                        L"Renderer: Microsoft Edge WebView2 (installed)\n"
                        L"Shortcuts: Ctrl+Alt+P toggles the panel, Ctrl+Alt+R refreshes\n\n"
                        L"Config file:\n")
-        : std::wstring(L"Markdown 预览 v1.3.1\n\n"
+        : std::wstring(L"Markdown 预览 v1.3.2\n\n"
                        L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
                        L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
                        L"• 代码语法高亮，一键复制\n"

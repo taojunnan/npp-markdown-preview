@@ -51,6 +51,7 @@
     renderedPath: null
   };
 
+  let lastRenderAt = 0;       // when the last render finished (see dimToolsWhileScrolling)
   let tocOffsets = null;      // cached heading offsets, invalidated on re-render
   let tocLines = [];          // source line of every TOC entry
   let activeTocIndex = -1;
@@ -694,6 +695,8 @@
     // let it run once the frame has been produced.
     scheduleTocUpdate();
 
+    lastRenderAt = performance.now();
+
     if (meta && meta.debug) {
       post({
         type: 'timing',
@@ -890,7 +893,10 @@
   let toolsIdleTimer = 0;
 
   function dimToolsWhileScrolling() {
-    if (!toolsEl || programmaticScroll) return;
+    if (!toolsEl) return;
+    // A re-render often drags the preview along by a line or two; that is not
+    // the user reading, so keep the toolbar steady right after a render.
+    if (performance.now() - lastRenderAt < 500) return;
     toolsEl.classList.add('dim');
     clearTimeout(toolsIdleTimer);
     toolsIdleTimer = setTimeout(function () { toolsEl.classList.remove('dim'); }, 1000);
