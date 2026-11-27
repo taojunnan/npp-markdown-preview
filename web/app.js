@@ -884,6 +884,20 @@
     updateActiveToc(true);
   }
 
+  // Fade the floating toolbar out while the document is being scrolled, and
+  // bring it back shortly after the scrolling stops.
+  const toolsEl = document.querySelector('.tools');
+  let toolsIdleTimer = 0;
+
+  function dimToolsWhileScrolling() {
+    if (!toolsEl || programmaticScroll) return;
+    toolsEl.classList.add('dim');
+    clearTimeout(toolsIdleTimer);
+    toolsIdleTimer = setTimeout(function () { toolsEl.classList.remove('dim'); }, 1000);
+  }
+
+  scrollEl.addEventListener('scroll', dimToolsWhileScrolling, { passive: true });
+
   scrollEl.addEventListener('scroll', function () {
     // A pinned item survives the smooth scroll that the click started; it is
     // released by real input (wheel / keys / drag) or by editor-driven sync.

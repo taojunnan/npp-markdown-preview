@@ -93,9 +93,12 @@ body {
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--border-soft), 0 2px 6px rgba(0, 0, 0, 0.07);
   opacity: 0.86;
-  transition: opacity 0.14s ease;
+  transition: opacity 0.2s ease;
   user-select: none;
 }
+
+/* reading mode: almost invisible while scrolling, back to normal when idle */
+.tools.dim { opacity: 0.22; }
 
 .tools:hover,
 .tools:focus-within { opacity: 1; }
