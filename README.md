@@ -229,7 +229,8 @@ release\               预编译安装包
 
 - 原生 C++ 插件，界面用 WebView2（Chromium）渲染：`marked` 解析 → `DOMPurify` 过滤 → `highlight.js` 高亮 → `KaTeX` 排公式
 - 面板资源通过 `SetVirtualHostNameToFolderMapping` 映射到本地目录；文档引用的图片走 `WebResourceRequested` 拦截，按文件目录读取，不经过 HTTP
-- 渲染后用一个与 marked 对齐的轻量扫描器，把每个顶层块（标题/段落/列表/代码块/表格/引用/分隔线）的起始行号记下来，滚动时二分找到所在块、只在块内插值。块数量或类型与 DOM 对不上时自动退回标题锚点，不会错位
+- 渲染后用一个与 marked 对齐的轻量扫描器，把每个顶层块（标题/段落/列表/代码块/表格/引用/分隔线）的起止行号记下来；再用块首文字与渲染结果做内容比对，把行号挂到对应元素上（不靠元素计数，所以 front matter、HTML 注释、`<details>` 这类"扫描器猜不到、渲染器却会多出或少掉节点"的情况都不会连锁错位）
+- 代码块和表格按"一行源码 = 一行渲染"的网格直接换算；其余块在自身高度内按行比例插值。锚点覆盖率不足时退回标题锚点
 - 预览 → 编辑器用 `SCI_SETFIRSTVISIBLELINE`，落点与正向一致（视口顶部对齐视口顶部）
 - 导出 PDF 用 `ICoreWebView2_7::PrintToPdf`；导出 HTML 把图片转成 data URI
 - 冷启动时先把 WebView2 窗口隐藏，页面首帧就绪后再显示，中间由宿主窗口绘制骨架图，避免白屏

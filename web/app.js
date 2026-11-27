@@ -483,6 +483,13 @@
       // a link reference definition renders to nothing on its own
       if (/^ {0,3}\[[^\]]+\]:/.test(line)) { i++; continue; }
 
+      // an HTML comment produces no element at all
+      if (/^ {0,3}<!--/.test(line)) {
+        while (i < n && lines[i].indexOf('-->') === -1) i++;
+        i++;
+        continue;
+      }
+
       if (htmlBlock.test(line)) {
         out.push({ line: i, kind: 'html' });
         i++;
@@ -499,6 +506,9 @@
         if (i + 1 < n && setext.test(lines[i + 1])) break;
         i++;
       }
+    }
+    for (let k = 0; k < out.length; k++) {
+      out[k].end = k + 1 < out.length ? out[k + 1].line : n;
     }
     return out;
   }
@@ -522,18 +532,87 @@
     return false;
   }
 
-  function buildBlockMap(blocks) {
-    state.blocks = [];
-    const children = Array.prototype.slice.call(docEl.children);
-    // Any disagreement means the scan does not mirror the renderer for this
-    // document, so drop the map and fall back to the heading anchors.
-    if (!blocks.length || blocks.length !== children.length) return;
-    for (let i = 0; i < blocks.length; i++) {
-      if (!kindMatches(blocks[i].kind, blockKindOf(children[i]))) return;
+  // Marks the characters of a source line that identify the block in the
+  // rendered text: syntax stripped, whitespace collapsed.
+  function anchorKey(text) {
+    // keep letters, digits and CJK only: markdown punctuation, inline links,
+    // permalink anchors and injected html all disappear, which is what makes the
+    // comparison survive the hand-off from source to rendered text
+    return (text || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\]\([^)]*\)/g, ' ')
+      .replace(/[^\p{L}\p{N}]/gu, '')
+      .slice(0, 10);
+  }
+
+  function elementText(el) {
+    let node = el;
+    // the code block wrapper starts with its language label, not with the code
+    if (el.classList && el.classList.contains('codeblock')) {
+      node = el.querySelector('code') || el;
+    } else if (el.classList && el.classList.contains('table-wrap')) {
+      node = el.querySelector('table') || el;
     }
-    const out = new Array(blocks.length);
-    for (let i = 0; i < blocks.length; i++) out[i] = { line: blocks[i].line, el: children[i] };
-    state.blocks = out;
+    return anchorKey((node.textContent || '').slice(0, 200));
+  }
+
+  // Anchors blocks by their own text instead of by position.  Counting elements
+  // breaks as soon as the renderer emits something the scanner did not predict
+  // (front matter, an html comment that never renders, a <details> that swallows
+  // its neighbours), and one off-by-one there poisons every later anchor.
+  // Anchors blocks by their own text instead of by position.  Counting elements
+  // breaks as soon as the renderer emits something the scanner did not predict
+  // (front matter, an html comment that never renders, a <details> that swallows
+  // its neighbours), and one off-by-one there poisons every later anchor.
+  function buildBlockMap(blocks, sourceText) {
+    state.blocks = [];
+    const dom = Array.prototype.slice.call(docEl.children);
+    if (!blocks.length || !dom.length) return;
+
+    const lines = sourceText.split(/\r\n|\r|\n/);
+    const texts = new Array(dom.length);
+    const byPrefix = Object.create(null);
+    for (let j = 0; j < dom.length; j++) {
+      const text = elementText(dom[j]);
+      texts[j] = text;
+      for (let L = 2; L <= 8 && L <= text.length; L++) {
+        const key = text.slice(0, L);
+        if (byPrefix[key] === undefined) byPrefix[key] = j;
+      }
+    }
+
+    const pairs = [];
+    let lastEl = -1;
+    for (let i = 0; i < blocks.length; i++) {
+      // a fenced code block starts with ```lang, which carries no text to
+      // match against; its first content line does
+      const firstLine = blocks[i].kind === 'code' ? blocks[i].line + 1 : blocks[i].line;
+      let key = '';
+      for (let s = 0; s < 3 && firstLine + s < lines.length; s++) {
+        key = anchorKey(lines[firstLine + s] || '');
+        if (key.length >= 2) break;
+      }
+      if (key.length < 2) continue;
+      const want = key.slice(0, 8);
+      let j = byPrefix[want];
+      // the same text can repeat; take the next element that really starts with
+      // it so the anchors keep their order
+      if (j !== undefined && j <= lastEl) {
+        j = undefined;
+        for (let k = lastEl + 1; k < dom.length && k <= lastEl + 60; k++) {
+          if (texts[k].slice(0, want.length) === want) { j = k; break; }
+        }
+      }
+      if (j === undefined || j <= lastEl) continue;
+      pairs.push({ line: blocks[i].line, end: blocks[i].end, el: dom[j] });
+      lastEl = j;
+    }
+
+    // Too few matches means text anchoring does not fit this document; a sparse
+    // or wrong map is worse than the heading anchors.
+    const coverage = pairs.length / Math.max(blocks.length, dom.length);
+    if (pairs.length < 4 || coverage < 0.35) return;
+    state.blocks = pairs;
   }
 
   // --------------------------------------------------------- post-process ---
@@ -737,14 +816,45 @@
     }
   }
 
+  // Headings first take their line from the text anchored block map; only when
+  // that leaves some unplaced do we fall back to pairing by order, which needs
+  // the two sides to agree on the count.
   function buildHeadingMap(sourceText, blocks) {
     const source = collectSourceHeadings(sourceText, blocks);
     const domHeads = Array.prototype.slice.call(docEl.querySelectorAll('h1, h2, h3, h4, h5, h6'));
     state.headings = [];
-    if (!source.length || source.length !== domHeads.length) return; // ratio fallback
-    for (let i = 0; i < source.length; i++) {
-      state.headings.push({ line: source[i].line, el: domHeads[i] });
-      domHeads[i].dataset.line = String(source[i].line);
+    if (!domHeads.length) return;
+
+    const anchored = Object.create(null);
+    for (let k = 0; k < state.blocks.length; k++) {
+      if (state.blocks[k].el.tagName && /^H[1-6]$/.test(state.blocks[k].el.tagName)) {
+        anchored[state.blocks[k].el.id || k] = null;
+      }
+    }
+
+    let placed = 0;
+    const lineFor = new Array(domHeads.length).fill(-1);
+    if (state.blocks.length) {
+      const byEl = new Map();
+      for (let k = 0; k < state.blocks.length; k++) byEl.set(state.blocks[k].el, state.blocks[k].line);
+      for (let i = 0; i < domHeads.length; i++) {
+        const line = byEl.get(domHeads[i]);
+        if (line !== undefined) { lineFor[i] = line; placed++; }
+      }
+    }
+
+    if (placed < domHeads.length) {
+      // fall back to order pairing for the remaining ones, only when the counts
+      // line up (a document whose source and rendering disagree keeps them -1)
+      if (source.length === domHeads.length) {
+        for (let i = 0; i < domHeads.length; i++) if (lineFor[i] < 0) lineFor[i] = source[i].line;
+      }
+    }
+
+    for (let i = 0; i < domHeads.length; i++) {
+      if (lineFor[i] < 0) continue;
+      state.headings.push({ line: lineFor[i], el: domHeads[i] });
+      domHeads[i].dataset.line = String(lineFor[i]);
       domHeads[i].classList.add('jumpable');
       domHeads[i].title = t('gotoSource');
     }
@@ -852,7 +962,7 @@
     buildToc();
     const srcBlocks = collectSourceBlocks(body);
     buildHeadingMap(body, srcBlocks);
-    buildBlockMap(srcBlocks);
+    buildBlockMap(srcBlocks, body);
     refreshTocLines();
     updateStatus();
     const tToc = performance.now() - tToc0;
@@ -909,7 +1019,13 @@
       syncFrame = null;
       const first = Math.max(0, msg.first || 0);
       const total = Math.max(1, msg.total || 1);
-      const y = targetScrollFor(first, total);
+      let y = null;
+      try {
+        y = targetScrollFor(first, total);
+      } catch (err) {
+        post({ type: 'timing', text: 'sync error: ' + (err && err.message) });
+        return;
+      }
       if (y === null) return;
       const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
       scrollEl.scrollTop = Math.min(max, Math.max(0, y));
@@ -928,6 +1044,52 @@
     return r.top - s.top + scrollEl.scrollTop;
   }
 
+  // Inside a block the source lines and the rendered pixels do not start at the
+  // same place: a fenced code block spends two lines on the fences and one band
+  // on the language header, a table spends a line on the |---|---| separator.
+  // Align the interpolation to the part that actually renders.
+  // Pixel position of a source line inside one block.
+  //
+  // Code blocks and tables have a fixed grid (one source line, one rendered
+  // row), so they map exactly.  Everything else is interpolated over the block's
+  // own height; the block's end comes from the scan, so trailing blank lines and
+  // the gap to the next block cannot skew it.
+  function blockScrollFor(block, line, scrollTop) {
+    const el = block.el;
+    const kind = blockKindOf(el);
+    const start = block.line;
+    const end = Math.max(start + 1, block.end || start + 1);
+
+    if (kind === 'code') {
+      const pre = el.tagName === 'PRE' ? el : el.querySelector('pre');
+      if (pre) {
+        const code = pre.querySelector('code') || pre;
+        const rows = Math.max(1, (code.textContent || '').split('\n').length);
+        const height = pre.getBoundingClientRect().height;
+        const top = scrollTop + (pre.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top);
+        // skip the opening fence so the first code line is row zero
+        const k = Math.min(rows - 1, Math.max(0, line - (start + 1)));
+        return Math.max(0, top + (k * height) / rows);
+      }
+    }
+
+    if (kind === 'table') {
+      const table = el.tagName === 'TABLE' ? el : el.querySelector('table');
+      if (table) {
+        const rows = table.rows ? table.rows.length : 1;
+        const height = table.getBoundingClientRect().height;
+        const top = scrollTop + (table.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top);
+        // source row 0 is the header, row 1 is the |---| separator
+        const k = Math.min(rows - 1, Math.max(0, line - (start + 1)));
+        return Math.max(0, top + (k * height) / rows);
+      }
+    }
+
+    const top = scrollTop + (el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top);
+    const frac = Math.min(1, Math.max(0, (line - start) / (end - start)));
+    return Math.max(0, top + frac * el.getBoundingClientRect().height);
+  }
+
   function targetScrollFor(first, total) {
     const blocks = state.blocks;
     if (blocks && blocks.length) {
@@ -939,19 +1101,8 @@
         if (blocks[mid].line <= first) { idx = mid; lo = mid + 1; } else hi = mid - 1;
       }
       if (idx < 0) return 0;
-      const cur = blocks[idx];
-      const yCur = Math.max(0, offsetInScroll(cur.el) - 8);
-      const next = blocks[idx + 1];
-      if (next) {
-        const yNext = Math.max(yCur, offsetInScroll(next.el) - 8);
-        const span = Math.max(1, next.line - cur.line);
-        const frac = Math.min(1, Math.max(0, (first - cur.line) / span));
-        return yCur + frac * (yNext - yCur);
-      }
-      const span = Math.max(1, total - cur.line);
-      const frac = Math.min(1, Math.max(0, (first - cur.line) / span));
-      const docEnd = Math.max(yCur, scrollEl.scrollHeight - scrollEl.clientHeight);
-      return yCur + frac * (docEnd - yCur);
+      const y = blockScrollFor(blocks[idx], first, scrollEl.scrollTop);
+      return Math.min(Math.max(0, y), Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight));
     }
 
     const heads = state.headings;

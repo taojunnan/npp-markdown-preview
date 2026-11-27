@@ -239,7 +239,8 @@ Front-end libraries (marked, DOMPurify, highlight.js, KaTeX, github-markdown-css
 
 - Native C++ plugin; the panel is rendered by WebView2 (Chromium): `marked` parses → `DOMPurify` sanitizes → `highlight.js` highlights → `KaTeX` typesets math
 - Panel assets are served through `SetVirtualHostNameToFolderMapping`; images referenced by the document are intercepted with `WebResourceRequested` and read from the file system — no HTTP involved
-- A lightweight scanner mirrors marked and records the source line of every top level block (heading, paragraph, list, code block, table, quote, rule). Syncing binary-searches that block and interpolates only inside it, so a table or a code block cannot drag the mapping off. If the block count or kinds disagree with the DOM the map is dropped and heading anchors take over
+- A lightweight scanner mirrors marked and records the start and end line of every top level block; each line number is then bound to its element by comparing the block''s leading text with the rendered text. Nothing is paired by position, so front matter, html comments or a `<details>` block that adds or removes nodes cannot shift every anchor that follows
+- Code blocks and tables map on a fixed grid (one source line, one rendered row); other blocks interpolate over their own height. Below roughly 50% coverage heading anchors take over
 - Preview → editor uses `SCI_SETFIRSTVISIBLELINE`, aligning viewport top with viewport top in both directions
 - PDF export uses `ICoreWebView2_7::PrintToPdf`; HTML export inlines images as data URIs
 - On a cold start the WebView2 window stays hidden until its first frame is ready; the host window paints a skeleton in the meantime, so there is no white flash
