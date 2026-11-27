@@ -1,4 +1,5 @@
 // Markdown Preview for Notepad++ - WebView2 host implementation
+#include "i18n.h"
 #include "log.h"
 #include "webview.h"
 
@@ -406,7 +407,7 @@ struct WebViewHost::Impl {
         ControllerHandler::Fn fn = [this](HRESULT hr, ICoreWebView2Controller* c) -> HRESULT {
             creating = false;
             if (FAILED(hr) || !c) {
-                Fail(L"WebView2 控制器创建失败。");
+                Fail(mdtr::T(L"WebView2 控制器创建失败。", L"Could not create the WebView2 controller."));
                 return hr;
             }
             WV_TRACE("[wv] controller created\n");
@@ -415,7 +416,7 @@ struct WebViewHost::Impl {
             controller->QueryInterface(IID_ICoreWebView2Controller2, (void**)&controller2);
             controller->get_CoreWebView2(&webview);
             if (!webview) {
-                Fail(L"WebView2 初始化失败。");
+                Fail(mdtr::T(L"WebView2 初始化失败。", L"WebView2 initialisation failed."));
                 return E_FAIL;
             }
 
@@ -664,12 +665,12 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
     if (!impl_->loader) impl_->loader = LoadLibraryW(L"WebView2Loader.dll");
     if (!impl_->loader) {
         impl_->Fail(
-            L"未找到 WebView2Loader.dll。\n请重新安装插件（该文件应与 MarkdownPreview.dll 位于同一目录）。");
+            mdtr::T(L"未找到 WebView2Loader.dll。\n请重新安装插件（该文件应与 MarkdownPreview.dll 位于同一目录）。", L"WebView2Loader.dll was not found.\nReinstall the plugin (the file must sit next to MarkdownPreview.dll)."));
         return false;
     }
     impl_->createEnv = (PFN_CreateEnv)GetProcAddress(impl_->loader, "CreateCoreWebView2EnvironmentWithOptions");
     if (!impl_->createEnv) {
-        impl_->Fail(L"WebView2Loader.dll 不完整：缺少 CreateCoreWebView2EnvironmentWithOptions。");
+        impl_->Fail(mdtr::T(L"WebView2Loader.dll 不完整：缺少 CreateCoreWebView2EnvironmentWithOptions。", L"WebView2Loader.dll is incomplete: CreateCoreWebView2EnvironmentWithOptions is missing."));
         return false;
     }
 
@@ -681,12 +682,16 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
         WV_TRACE("[wv] env hr=0x%08lx\n", (unsigned long)hr);
         mdlog::Line(L"environment hr=0x%08lx", (unsigned long)hr);
         if (FAILED(hr) || !env) {
-            impl_->Fail(
-                L"无法创建 WebView2 环境。\n\n"
-                L"常见原因有两个：\n"
-                L"• 系统缺少 “Microsoft Edge WebView2 运行时”（Windows 10/11 通常已自带，"
-                L"可从微软官网下载 Evergreen 版本）；\n"
-                L"• 已经有一个 Notepad++ 窗口在使用同一个预览配置目录——关掉其它窗口后重试即可。");
+            impl_->Fail(mdtr::English()
+                ? L"Could not create a WebView2 environment.\n\n"
+                  L"Two common causes:\n"
+                  L"\u2022 The \u201cMicrosoft Edge WebView2 Runtime\u201d is missing (usually preinstalled on Windows 10/11; otherwise install the Evergreen runtime from Microsoft);\n"
+                  L"\u2022 Another Notepad++ window is already using the same preview profile — close it and retry."
+                : L"无法创建 WebView2 环境。\n\n"
+                  L"常见原因有两个：\n"
+                  L"• 系统缺少 “Microsoft Edge WebView2 运行时”（Windows 10/11 通常已自带，"
+                  L"可从微软官网下载 Evergreen 版本）；\n"
+                  L"• 已经有一个 Notepad++ 窗口在使用同一个预览配置目录——关掉其它窗口后重试即可。");
             return hr;
         }
         env->AddRef();
@@ -699,7 +704,7 @@ bool WebViewHost::Create(HWND parent, const std::wstring& pluginDir, const std::
     options->Release();
 
     if (FAILED(hr)) {
-        impl_->Fail(L"WebView2 环境创建调用失败（HRESULT 0x" + std::to_wstring((unsigned)hr) + L"）。");
+        impl_->Fail((mdtr::English() ? L"Creating the WebView2 environment failed (HRESULT 0x" : L"WebView2 环境创建调用失败（HRESULT 0x") + std::to_wstring((unsigned)hr) + L").");
         return false;
     }
     return true;

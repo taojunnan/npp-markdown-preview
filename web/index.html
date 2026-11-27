@@ -29,12 +29,12 @@
     <div class="spacer"></div>
 
     <div class="tools">
-      <button id="btn-toc" class="tbtn" title="显示 / 隐藏目录" aria-label="目录">
+      <button id="btn-toc" class="tbtn" data-i18n-title="tocToggle" title="显示 / 隐藏目录" aria-label="目录">
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <path d="M4 6h16M4 12h10M4 18h13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
       </button>
-      <button id="btn-theme" class="tbtn" title="切换深浅色" aria-label="切换主题">
+      <button id="btn-theme" class="tbtn" data-i18n-title="themeToggle" title="切换深浅色" aria-label="切换主题">
         <svg class="i-sun" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/>
           <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"
@@ -49,17 +49,17 @@
         </svg>
       </button>
       <div class="zoomgrp">
-        <button id="btn-zoom-out" class="tbtn" title="缩小字号 (Ctrl+-)" aria-label="缩小字号">A−</button>
-        <button id="btn-zoom-in" class="tbtn" title="放大字号 (Ctrl+=)" aria-label="放大字号">A+</button>
+        <button id="btn-zoom-out" class="tbtn" data-i18n-title="zoomOut" title="缩小字号 (Ctrl+-)" aria-label="缩小字号">A−</button>
+        <button id="btn-zoom-in" class="tbtn" data-i18n-title="zoomIn" title="放大字号 (Ctrl+=)" aria-label="放大字号">A+</button>
       </div>
-      <button id="btn-more" class="tbtn" title="更多操作" aria-label="更多操作" aria-haspopup="true" aria-expanded="false">
+      <button id="btn-more" class="tbtn" data-i18n-title="more" title="更多操作" aria-label="更多操作" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <circle cx="5.5" cy="12" r="1.6" fill="currentColor"/>
           <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
           <circle cx="18.5" cy="12" r="1.6" fill="currentColor"/>
         </svg>
       </button>
-      <button id="btn-refresh" class="tbtn" title="刷新预览 (F5)" aria-label="刷新预览">
+      <button id="btn-refresh" class="tbtn" data-i18n-title="refresh" title="刷新预览 (F5)" aria-label="刷新预览">
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <path d="M20 12a8 8 0 1 1-2.6-5.9M20 4.5V10h-5.4" fill="none" stroke="currentColor" stroke-width="1.8"
                 stroke-linecap="round" stroke-linejoin="round"/>
@@ -72,8 +72,8 @@
   <div id="main">
     <aside id="toc" aria-label="文档目录">
       <div class="toc-head">
-        <span>目录</span>
-        <button id="btn-toc-close" class="tbtn tiny" title="收起目录" aria-label="收起目录">
+        <span data-i18n="tocTitle">目录</span>
+        <button id="btn-toc-close" class="tbtn tiny" data-i18n-title="tocClose" title="收起目录" aria-label="收起目录">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
           </svg>
@@ -105,15 +105,15 @@
               <circle cx="29" cy="25" r="2.4" fill="currentColor" opacity=".7"/>
             </svg>
           </div>
-          <h1>开始书写，右侧即时呈现</h1>
-          <p class="muted">在 Notepad++ 中输入 Markdown，这里会实时渲染成排版良好的文档。</p>
+          <h1 data-i18n="emptyTitle">开始书写，右侧即时呈现</h1>
+          <p class="muted" data-i18n="emptyBody">在 Notepad++ 中输入 Markdown，这里会实时渲染成排版良好的文档。</p>
           <div class="hints">
-            <div><code># 标题</code><span>章节结构</span></div>
-            <div><code>**粗体**</code><span>强调文字</span></div>
-            <div><code>- 列表</code><span>清单</span></div>
-            <div><code>```js</code><span>代码高亮</span></div>
-            <div><code>| 表格 |</code><span>数据表格</span></div>
-            <div><code>![](img/a.png)</code><span>本地图片</span></div>
+            <div><code># 标题</code><span data-i18n="hintHeading">章节结构</span></div>
+            <div><code>**粗体**</code><span data-i18n="hintBold">强调文字</span></div>
+            <div><code>- 列表</code><span data-i18n="hintList">清单</span></div>
+            <div><code>```js</code><span data-i18n="hintCode">代码高亮</span></div>
+            <div><code>| 表格 |</code><span data-i18n="hintTable">数据表格</span></div>
+            <div><code>![](img/a.png)</code><span data-i18n="hintImage">本地图片</span></div>
           </div>
         </div>
       </section>
@@ -121,7 +121,7 @@
       <section id="error" hidden>
         <div class="empty-card">
           <div class="empty-icon err">!</div>
-          <h1>预览未能启动</h1>
+          <h1 data-i18n="errorTitle">预览未能启动</h1>
           <p class="muted" id="error-text"></p>
         </div>
       </section>
@@ -130,7 +130,7 @@
 
   <!-- ------------------------------------------------ status -->
   <footer id="status">
-    <span id="status-left" class="muted">就绪</span>
+    <span id="status-left" class="muted" data-i18n="ready">就绪</span>
     <span class="spacer"></span>
     <span id="status-right" class="muted"></span>
   </footer>
@@ -138,14 +138,14 @@
 
 <!-- overflow menu -->
 <div id="more-menu" class="menu" hidden>
-  <button data-act="copy-all">复制全文 Markdown</button>
-  <button data-act="export-html">导出为 HTML…</button>
-  <button data-act="export-pdf">导出为 PDF…</button>
-  <button data-act="print">打印…</button>
-  <button data-act="browser">在浏览器中打开</button>
+  <button data-act="copy-all" data-i18n="copyAll">复制全文 Markdown</button>
+  <button data-act="export-html" data-i18n="exportHtml">导出为 HTML…</button>
+  <button data-act="export-pdf" data-i18n="exportPdf">导出为 PDF…</button>
+  <button data-act="print" data-i18n="print">打印…</button>
+  <button data-act="browser" data-i18n="openBrowser">在浏览器中打开</button>
   <div class="menu-sep"></div>
   <button data-act="toggle-sync">滚动同步：开</button>
-  <button data-act="sync-now">同步到光标位置</button>
+  <button data-act="sync-now" data-i18n="syncNow">同步到光标位置</button>
 </div>
 
 <!-- lightbox -->
@@ -155,11 +155,11 @@
 
 <!-- custom context menu -->
 <div id="ctx-menu" class="menu" hidden>
-  <button data-act="ctx-copy">复制</button>
-  <button data-act="ctx-selectall">全选</button>
-  <button data-act="ctx-copy-code" hidden>复制代码块</button>
+  <button data-act="ctx-copy" data-i18n="copy">复制</button>
+  <button data-act="ctx-selectall" data-i18n="selectAll">全选</button>
+  <button data-act="ctx-copy-code" hidden data-i18n="copyCode">复制代码块</button>
   <div class="menu-sep"></div>
-  <button data-act="ctx-open-browser">在浏览器中打开</button>
+  <button data-act="ctx-open-browser" data-i18n="openBrowser">在浏览器中打开</button>
 </div>
 
 <div id="toast" hidden></div>

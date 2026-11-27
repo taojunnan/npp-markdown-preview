@@ -17,13 +17,45 @@
 
 #include "sdk\Docking.h"
 #include "sdk\PluginInterface.h"
+#include "i18n.h"
 #include "log.h"
 #include "webview.h"
 
 // ------------------------------------------------------------- plugin data --
 
-static const wchar_t* kPluginName = L"Markdown 预览";
-static const wchar_t* kPanelTitle = L"Markdown 预览";
+static std::wstring g_pluginName = L"Markdown 预览";
+static std::wstring g_panelTitle = L"Markdown 预览";
+
+// getName() runs before setInfo(), so the language has to be resolved from the
+// default config location at that point.
+static void DetectLanguageEarly() {
+    wchar_t appData[MAX_PATH] = {};
+    std::wstring ini;
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, appData))) {
+        ini = std::wstring(appData) +
+              L"\\Notepad++\\plugins\\config\\MarkdownPreview\\MarkdownPreview.ini";
+    }
+    wchar_t buf[16] = {};
+    if (!ini.empty()) GetPrivateProfileStringW(L"general", L"language", L"auto", buf, 16, ini.c_str());
+    mdtr::Detect(buf[0] ? buf : L"auto");
+}
+
+static const wchar_t* PluginDisplayName() {
+    static std::wstring name;
+    const wchar_t* want = mdtr::English() ? L"Markdown Preview" : L"Markdown 预览";
+    if (name != want) name = want;
+    return name.c_str();
+}
+
+static void LocalizeMenu();
+
+static void ApplyLanguage() {
+    g_pluginName = mdtr::English() ? L"Markdown Preview" : L"Markdown 预览";
+    g_panelTitle = mdtr::English() ? L"Markdown Preview" : L"Markdown 预览";
+    LocalizeMenu();
+}
+#define kPluginName g_pluginName.c_str()
+#define kPanelTitle g_panelTitle.c_str()
 static const wchar_t* kDllModuleName = L"MarkdownPreview.dll";
 
 NppData nppData = {};
@@ -54,6 +86,7 @@ struct Config {
     bool preload = false;          // opt-in: warm up WebView2 in the background
     bool releaseOnHide = true;     // free the browser once the panel stays closed
     bool debug = false;            // write preview.log next to the ini
+    std::wstring language = L"auto";  // auto | zh | en
     std::wstring theme = L"auto";  // auto | light | dark
     int fontSize = 16;
     bool toc = true;
@@ -81,6 +114,7 @@ static void LoadConfig() {
     g_cfg.preload = IniReadInt(L"general", L"preload", 0) != 0;
     g_cfg.releaseOnHide = IniReadInt(L"general", L"releaseOnHide", 1) != 0;
     g_cfg.debug = IniReadInt(L"general", L"debug", 0) != 0;
+    g_cfg.language = IniReadStr(L"general", L"language", L"auto");
     g_cfg.theme = IniReadStr(L"appearance", L"theme", L"auto");
     if (g_cfg.theme != L"auto" && g_cfg.theme != L"light" && g_cfg.theme != L"dark") g_cfg.theme = L"auto";
     g_cfg.fontSize = IniReadInt(L"appearance", L"fontSize", 16);
@@ -94,6 +128,7 @@ static void SaveConfig() {
     IniWrite(L"general", L"autoOpen", g_cfg.autoOpen ? L"1" : L"0");
     IniWrite(L"general", L"preload", g_cfg.preload ? L"1" : L"0");
     IniWrite(L"general", L"releaseOnHide", g_cfg.releaseOnHide ? L"1" : L"0");
+    IniWrite(L"general", L"language", g_cfg.language);
     IniWrite(L"appearance", L"theme", g_cfg.theme);
     IniWrite(L"appearance", L"fontSize", std::to_wstring(g_cfg.fontSize));
     IniWrite(L"appearance", L"toc", g_cfg.toc ? L"1" : L"0");
@@ -584,7 +619,7 @@ static void EnsureWebView(bool quiet) {
     g_web->onPdfDone = [](bool ok) {
         g_printMode = false;
         if (g_web) g_web->PostJson(L"{\"type\":\"printMode\",\"on\":false}");
-        if (!ok) MessageBoxW(nppData._nppHandle, L"PDF 导出失败。", kPluginName, MB_ICONWARNING | MB_OK);
+        if (!ok) MessageBoxW(nppData._nppHandle, mdtr::T(L"PDF 导出失败。", L"PDF export failed."), kPluginName, MB_ICONWARNING | MB_OK);
     };
 
     std::wstring userData = g_configDir + L"\\WebView2";
@@ -704,6 +739,8 @@ static std::wstring BuildContentJson(const std::wstring& text, const std::wstrin
     json += g_cfg.sync ? L"true" : L"false";
     json += L",\"truncated\":";
     json += truncated ? L"true" : L"false";
+    json += L",\"lang\":";
+    json += mdtr::English() ? L"\"en\"" : L"\"zh\"";
     json += L"}";
     return json;
 }
@@ -856,7 +893,7 @@ void HandleWebMessage(const std::wstring& json) {
     if (type == L"printReady") {
         if (g_printMode) {
             std::wstring path = AskSavePath(
-                L"PDF 文件 (*.pdf)\0*.pdf\0所有文件 (*.*)\0*.*\0\0", nullptr, L"pdf", DirNameOf(CurrentFilePath()));
+                mdtr::T(L"PDF 文件 (*.pdf)\0*.pdf\0所有文件 (*.*)\0*.*\0\0", L"PDF files (*.pdf)\0*.pdf\0All files (*.*)\0*.*\0\0"), nullptr, L"pdf", DirNameOf(CurrentFilePath()));
             if (path.empty()) {
                 g_printMode = false;
                 g_web->PostJson(L"{\"type\":\"printMode\",\"on\":false}");
@@ -865,7 +902,7 @@ void HandleWebMessage(const std::wstring& json) {
             if (!g_web->PrintToPdf(path)) {
                 g_printMode = false;
                 g_web->PostJson(L"{\"type\":\"printMode\",\"on\":false}");
-                MessageBoxW(nppData._nppHandle, L"当前 WebView2 版本不支持 PDF 导出。", kPluginName,
+                MessageBoxW(nppData._nppHandle, mdtr::T(L"当前 WebView2 版本不支持 PDF 导出。", L"This WebView2 version does not support PDF export."), kPluginName,
                             MB_ICONWARNING | MB_OK);
                 return;
             }
@@ -874,7 +911,7 @@ void HandleWebMessage(const std::wstring& json) {
                 g_printMode = false;
                 if (g_web) g_web->PostJson(L"{\"type\":\"printMode\",\"on\":false}");
                 if (ok) ShellExecuteW(nullptr, L"open", pdfPath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                else MessageBoxW(nppData._nppHandle, L"PDF 导出失败。", kPluginName, MB_ICONWARNING | MB_OK);
+                else MessageBoxW(nppData._nppHandle, mdtr::T(L"PDF 导出失败。", L"PDF export failed."), kPluginName, MB_ICONWARNING | MB_OK);
             };
         }
         return;
@@ -892,12 +929,12 @@ void HandleWebMessage(const std::wstring& json) {
             std::wstring path = std::wstring(tempDir) + (name.empty() ? L"preview" : StripExt(name)) + L".html";
             if (WriteTextFile(path, utf8)) ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         } else {
-            std::wstring path = AskSavePath(L"网页文件 (*.html)\0*.html\0所有文件 (*.*)\0*.*\0\0",
+            std::wstring path = AskSavePath(mdtr::T(L"网页文件 (*.html)\0*.html\0所有文件 (*.*)\0*.*\0\0", L"HTML files (*.html)\0*.html\0All files (*.*)\0*.*\0\0"),
                                             name.empty() ? L"preview.html" : name.c_str(), L"html",
                                             DirNameOf(CurrentFilePath()));
             if (path.empty()) return;
             if (WriteTextFile(path, utf8)) ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            else MessageBoxW(nppData._nppHandle, L"写入文件失败。", kPluginName, MB_ICONWARNING | MB_OK);
+            else MessageBoxW(nppData._nppHandle, mdtr::T(L"写入文件失败。", L"Could not write the file."), kPluginName, MB_ICONWARNING | MB_OK);
         }
         return;
     }
@@ -916,12 +953,27 @@ void HandleWebMessage(const std::wstring& json) {
     if (type == L"requestPrint") {
         if (!g_web || !g_web->IsReady()) return;
         if (!g_web->ShowPrintUi())
-            MessageBoxW(nppData._nppHandle, L"当前 WebView2 运行时不支持打印对话框，请改用“导出为 PDF”。",
+            MessageBoxW(nppData._nppHandle, mdtr::T(L"当前 WebView2 运行时不支持打印对话框，请改用“导出为 PDF”。", L"This WebView2 runtime has no print dialog; use Export as PDF instead."),
                         kPluginName, MB_ICONINFORMATION | MB_OK);
         return;
     }
     if (type == L"syncNow") {
         SendScrollSync(true);
+        return;
+    }
+    if (type == L"revealLine") {
+        // Clicking a heading in the preview jumps to that line in the editor.
+        HWND sci = CurrentScintilla();
+        int line = -1;
+        if (!JsonGetInt(json, L"line", line)) return;
+        mdlog::Line(L"reveal line %d", line);
+        if (!sci || line < 0) return;
+        LRESULT count = SendMessageW(sci, SCI_GETLINECOUNT, 0, 0);
+        if (line >= (int)count) line = (int)count - 1;
+        SendMessageW(sci, SCI_GOTOLINE, (WPARAM)line, 0);
+        int first = line > 2 ? line - 2 : 0;
+        SendMessageW(sci, SCI_SETFIRSTVISIBLELINE, (WPARAM)first, 0);
+        SetFocus(sci);
         return;
     }
 }
@@ -956,24 +1008,34 @@ static void CmdExportPdf() {
 static void CmdPrint() {
     if (!g_web || !g_web->IsReady()) return;
     if (!g_web->ShowPrintUi())
-        MessageBoxW(nppData._nppHandle, L"当前 WebView2 运行时不支持打印对话框，请改用“导出为 PDF”。", kPluginName,
+        MessageBoxW(nppData._nppHandle, mdtr::T(L"当前 WebView2 运行时不支持打印对话框，请改用“导出为 PDF”。", L"This WebView2 runtime has no print dialog; use Export as PDF instead."), kPluginName,
                     MB_ICONINFORMATION | MB_OK);
 }
 
 static void CmdAbout() {
-    std::wstring text =
-        L"Markdown 预览 v1.0.0\n\n"
-        L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
-        L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
-        L"• 代码语法高亮，一键复制\n"
-        L"• 目录导航、深浅色主题、字号缩放\n"
-        L"• 支持本地相对路径图片、导出 HTML / PDF\n"
-        L"• 主题可选“跟随编辑器”，边输入边预览\n\n"
-        L"渲染引擎：Microsoft Edge WebView2（本机已安装）\n"
-        L"快捷键：Ctrl+Alt+P 开关面板，Ctrl+Alt+R 刷新\n\n"
-        L"配置文件：\n";
+    std::wstring text = mdtr::English()
+        ? std::wstring(L"Markdown Preview v1.1.0\n\n"
+                       L"A live, dockable Markdown preview for Notepad++:\n"
+                       L"\u2022 GitHub-style typography, tables / task lists / strikethrough\n"
+                       L"\u2022 Syntax highlighting with one-click copy\n"
+                       L"\u2022 Table of contents, light/dark themes, font zoom\n"
+                       L"\u2022 Local relative images, HTML / PDF export\n"
+                       L"\u2022 Optional \u201cfollow editor\u201d theme, preview while typing\n\n"
+                       L"Renderer: Microsoft Edge WebView2 (installed)\n"
+                       L"Shortcuts: Ctrl+Alt+P toggles the panel, Ctrl+Alt+R refreshes\n\n"
+                       L"Config file:\n")
+        : std::wstring(L"Markdown 预览 v1.1.0\n\n"
+                       L"为 Notepad++ 提供实时、可停靠的 Markdown 预览：\n"
+                       L"• GitHub 风格排版，表格 / 任务列表 / 删除线\n"
+                       L"• 代码语法高亮，一键复制\n"
+                       L"• 目录导航、深浅色主题、字号缩放\n"
+                       L"• 支持本地相对路径图片、导出 HTML / PDF\n"
+                       L"• 主题可选“跟随编辑器”，边输入边预览\n\n"
+                       L"渲染引擎：Microsoft Edge WebView2（本机已安装）\n"
+                       L"快捷键：Ctrl+Alt+P 开关面板，Ctrl+Alt+R 刷新\n\n"
+                       L"配置文件：\n");
     text += g_iniPath;
-    MessageBoxW(nppData._nppHandle, text.c_str(), L"关于 Markdown 预览", MB_ICONINFORMATION | MB_OK);
+    MessageBoxW(nppData._nppHandle, text.c_str(), mdtr::T(L"关于 Markdown 预览", L"About Markdown Preview"), MB_ICONINFORMATION | MB_OK);
 }
 
 // -------------------------------------------------------------- func items --
@@ -993,6 +1055,28 @@ static FuncItem g_funcs[] = {
     {L"打印…", CmdPrint, 0, false, nullptr},
     {L"关于 Markdown 预览", CmdAbout, 0, false, nullptr},
 };
+
+// Notepad++ copies the menu labels right after setInfo(), so the language has
+// to be decided there.
+static void LocalizeMenu() {
+    static const wchar_t* const en[] = {
+        L"Show / hide preview panel",
+        L"Refresh preview",
+        L"Auto-open for Markdown files",
+        L"Preload preview (opens faster)",
+        L"Release memory when hidden",
+        L"Open preview in browser",
+        L"Export as HTML\u2026",
+        L"Export as PDF\u2026",
+        L"Print\u2026",
+        L"About Markdown Preview",
+    };
+    static const int n = (int)(sizeof(en) / sizeof(en[0]));
+    if (!mdtr::English()) return;
+    for (int i = 0; i < n && i < (int)(sizeof(g_funcs) / sizeof(g_funcs[0])); ++i) {
+        wcsncpy_s(g_funcs[i]._itemName, menuItemSize, en[i], _TRUNCATE);
+    }
+}
 static const int kCmdCount = (int)(sizeof(g_funcs) / sizeof(g_funcs[0]));
 
 static void AutoOpenForCurrentFile() {
@@ -1198,6 +1282,8 @@ extern "C" __declspec(dllexport) void setInfo(NppData data) {
     g_iniPath = g_configDir + L"\\MarkdownPreview.ini";
 
     LoadConfig();
+    mdtr::Detect(g_cfg.language);
+    ApplyLanguage();
     mdlog::Init(g_configDir, g_cfg.debug);
     mdlog::Line(L"plugin loaded, dir=%s", g_pluginDir.c_str());
     // materialise the defaults once so the settings file is easy to find and edit
@@ -1207,7 +1293,10 @@ extern "C" __declspec(dllexport) void setInfo(NppData data) {
     ApplyTheme();
 }
 
-extern "C" __declspec(dllexport) const wchar_t* getName() { return kPluginName; }
+extern "C" __declspec(dllexport) const wchar_t* getName() {
+    DetectLanguageEarly();
+    return PluginDisplayName();
+}
 
 extern "C" __declspec(dllexport) FuncItem* getFuncsArray(int* count) {
     *count = kCmdCount;

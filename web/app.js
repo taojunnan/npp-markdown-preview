@@ -56,6 +56,163 @@
   const tocEl = $('toc');
   const tocListEl = $('toc-list');
 
+  // -------------------------------------------------------------- i18n --
+  // The host tells us which language to use via the document meta ("lang").
+  const I18N = {
+    zh: {
+      tocTitle: '目录',
+      tocToggle: '显示 / 隐藏目录',
+      tocClose: '收起目录',
+      themeToggle: '切换深浅色',
+      zoomOut: '缩小字号 (Ctrl+-)',
+      zoomIn: '放大字号 (Ctrl+=)',
+      more: '更多操作',
+      refresh: '刷新预览 (F5)',
+      copyAll: '复制全文 Markdown',
+      exportHtml: '导出为 HTML…',
+      exportPdf: '导出为 PDF…',
+      print: '打印…',
+      openBrowser: '在浏览器中打开',
+      syncOn: '滚动同步：开',
+      syncOff: '滚动同步：关',
+      syncNow: '同步到光标位置',
+      copy: '复制',
+      copied: '已复制',
+      selectAll: '全选',
+      copyCode: '复制代码块',
+      emptyTitle: '开始书写，右侧即时呈现',
+      emptyBody: '在 Notepad++ 中输入 Markdown，这里会实时渲染成排版良好的文档。',
+      hintHeading: '章节结构',
+      hintBold: '强调文字',
+      hintList: '清单',
+      hintCode: '代码高亮',
+      hintTable: '数据表格',
+      hintImage: '本地图片',
+      errorTitle: '预览未能启动',
+      ready: '就绪',
+      untitled: '未命名',
+      unsaved: '未保存的文档',
+      words: '{w} 字 · {l} 行',
+      truncated: ' · 已截断',
+      noHeadings: '文档中还没有标题。用 # 号开头即可生成章节。',
+      section: '章节 {n}',
+      gotoSection: '定位到此章节',
+      gotoSource: '在编辑器中定位此行',
+      imageMissing: '图片未找到：',
+      renderFailed: '渲染库未能加载，请重新安装插件。',
+      parseFailed: 'Markdown 解析失败：',
+      themeAuto: '跟随编辑器',
+      themeLight: '浅色',
+      themeDark: '深色',
+      themeButton: '主题：{name}（点击切换）',
+      themeToast: '主题：{name}',
+      noContent: '没有可导出的内容',
+      generating: '正在生成…',
+      genFailed: '生成失败：',
+      openedBrowser: '已在浏览器中打开',
+      exported: '已导出',
+      docFallback: 'Markdown 文档'
+    },
+    en: {
+      tocTitle: 'Contents',
+      tocToggle: 'Show / hide contents',
+      tocClose: 'Hide contents',
+      themeToggle: 'Toggle light / dark',
+      zoomOut: 'Smaller text (Ctrl+-)',
+      zoomIn: 'Larger text (Ctrl+=)',
+      more: 'More actions',
+      refresh: 'Refresh preview (F5)',
+      copyAll: 'Copy all Markdown',
+      exportHtml: 'Export as HTML…',
+      exportPdf: 'Export as PDF…',
+      print: 'Print…',
+      openBrowser: 'Open in browser',
+      syncOn: 'Scroll sync: on',
+      syncOff: 'Scroll sync: off',
+      syncNow: 'Sync to caret',
+      copy: 'Copy',
+      copied: 'Copied',
+      selectAll: 'Select all',
+      copyCode: 'Copy code block',
+      emptyTitle: 'Start typing — it renders here',
+      emptyBody: 'Type Markdown in Notepad++ and it is rendered here as a typeset document.',
+      hintHeading: 'Sections',
+      hintBold: 'Emphasis',
+      hintList: 'Lists',
+      hintCode: 'Highlighted code',
+      hintTable: 'Tables',
+      hintImage: 'Local images',
+      errorTitle: 'The preview could not start',
+      ready: 'Ready',
+      untitled: 'Untitled',
+      unsaved: 'Unsaved document',
+      words: '{w} words · {l} lines',
+      truncated: ' · truncated',
+      noHeadings: 'No headings yet. Start a line with # to create one.',
+      section: 'Section {n}',
+      gotoSection: 'Go to this section',
+      gotoSource: 'Show this line in the editor',
+      imageMissing: 'Image not found: ',
+      renderFailed: 'The rendering library failed to load. Reinstall the plugin.',
+      parseFailed: 'Markdown parsing failed: ',
+      themeAuto: 'Follow editor',
+      themeLight: 'Light',
+      themeDark: 'Dark',
+      themeButton: 'Theme: {name} (click to switch)',
+      themeToast: 'Theme: {name}',
+      noContent: 'Nothing to export',
+      generating: 'Generating…',
+      genFailed: 'Generation failed: ',
+      openedBrowser: 'Opened in browser',
+      exported: 'Exported',
+      docFallback: 'Markdown document'
+    }
+  };
+
+  let lang = 'zh';
+
+  function t(key, vars) {
+    const table = I18N[lang] || I18N.zh;
+    let text = table[key];
+    if (text === undefined) text = I18N.zh[key] !== undefined ? I18N.zh[key] : key;
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        text = text.split('{' + k + '}').join(String(vars[k]));
+      });
+    }
+    return text;
+  }
+
+  function themeName(mode) {
+    if (mode === 'light') return t('themeLight');
+    if (mode === 'dark') return t('themeDark');
+    return t('themeAuto');
+  }
+
+  // Applies the language to the static markup (data-i18n / data-i18n-title)
+  // and to everything that is built dynamically.
+  function applyLang(next) {
+    lang = next === 'en' ? 'en' : 'zh';
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+    document.title = lang === 'en' ? 'Markdown Preview' : 'Markdown 预览';
+
+    const nodes = document.querySelectorAll('[data-i18n]');
+    for (let i = 0; i < nodes.length; i++) {
+      const key = nodes[i].getAttribute('data-i18n');
+      const text = t(key);
+      if (text && text !== key) nodes[i].textContent = text;
+    }
+    const titled = document.querySelectorAll('[data-i18n-title]');
+    for (let i = 0; i < titled.length; i++) {
+      const key = titled[i].getAttribute('data-i18n-title');
+      const text = t(key);
+      if (text && text !== key) titled[i].title = text;
+    }
+
+    if (typeof refreshThemeButton === 'function') refreshThemeButton();
+    if (typeof refreshSyncMenu === 'function') refreshSyncMenu();
+  }
+
   // --------------------------------------------------------------- helpers --
 
   function isNarrow() { return window.innerWidth <= 760; }
@@ -188,7 +345,7 @@
       a.className = 'h-anchor';
       a.href = '#' + id;
       a.textContent = '#';
-      a.title = '定位到此章节';
+      a.title = t('gotoSection');
       a.addEventListener('click', function (ev) {
         ev.preventDefault();
         scrollToId(id);
@@ -213,7 +370,7 @@
           img.dataset.failed = '1';
           const box = document.createElement('span');
           box.className = 'img-error';
-          box.textContent = '图片未找到：' + (src.length > 90 ? src.slice(0, 90) + '…' : src);
+          box.textContent = t('imageMissing') + (src.length > 90 ? src.slice(0, 90) + '…' : src);
           if (img.parentNode) img.parentNode.replaceChild(box, img);
         });
       }
@@ -297,13 +454,13 @@
       const btn = document.createElement('button');
       btn.className = 'cb-copy';
       btn.type = 'button';
-      btn.textContent = '复制';
+      btn.textContent = t('copy');
       btn.addEventListener('click', function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
         copyText(code.textContent || '');
-        btn.textContent = '已复制';
-        setTimeout(function () { btn.textContent = '复制'; }, 1200);
+        btn.textContent = t('copied');
+        setTimeout(function () { btn.textContent = t('copy'); }, 1200);
       });
       head.appendChild(label);
       head.appendChild(btn);
@@ -337,7 +494,7 @@
     if (!heads.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
-      empty.textContent = '文档中还没有标题。用 # 号开头即可生成章节。';
+      empty.textContent = t('noHeadings');
       tocListEl.appendChild(empty);
       return;
     }
@@ -345,7 +502,7 @@
       const a = document.createElement('a');
       a.className = 'toc-item';
       a.dataset.level = String(Math.min(4, parseInt(h.tagName.slice(1), 10)));
-      a.textContent = h.textContent.replace(/#$/, '').trim() || ('章节 ' + (i + 1));
+      a.textContent = h.textContent.replace(/#$/, '').trim() || t('section', { n: i + 1 });
       a.title = a.textContent;
       a.href = '#' + h.id;
       a.addEventListener('click', function (ev) {
@@ -365,6 +522,9 @@
     if (!source.length || source.length !== domHeads.length) return; // ratio fallback
     for (let i = 0; i < source.length; i++) {
       state.headings.push({ line: source[i].line, el: domHeads[i] });
+      domHeads[i].dataset.line = String(source[i].line);
+      domHeads[i].classList.add('jumpable');
+      domHeads[i].title = t('gotoSource');
     }
   }
 
@@ -375,10 +535,10 @@
     const words = text.replace(/[\u3400-\u9FFF\uF900-\uFAFF]/g, ' ').split(/\s+/).filter(Boolean).length;
     const total = cjk + words;
 
-    $('status-left').textContent = state.path || '未保存的文档';
+    $('status-left').textContent = state.path || t('unsaved');
     $('status-left').title = state.path || '';
-    $('status-right').textContent = total.toLocaleString() + ' 字 · ' + lines.toLocaleString() + ' 行' +
-      (state.truncated ? ' · 已截断' : '');
+    $('status-right').textContent = t('words', { w: total.toLocaleString(), l: lines.toLocaleString() }) +
+      (state.truncated ? t('truncated') : '');
   }
 
   // ---------------------------------------------------------------- render --
@@ -398,8 +558,9 @@
       if (typeof meta.toc === 'boolean') { state.toc = meta.toc; applyToc(false); }
       if (typeof meta.sync === 'boolean') state.sync = meta.sync;
       if (typeof meta.mode === 'string') { state.mode = meta.mode; refreshThemeButton(); }
+      if (typeof meta.lang === 'string' && meta.lang !== lang) applyLang(meta.lang);
     }
-    state.name = state.path ? basename(state.path) : '未命名';
+    state.name = state.path ? basename(state.path) : t('untitled');
     $('doc-name').textContent = state.name;
     $('doc-name').title = state.path || '';
 
@@ -418,7 +579,7 @@
       tocListEl.innerHTML = '';
       const hint = document.createElement('div');
       hint.className = 'toc-empty';
-      hint.textContent = '文档中还没有标题。用 # 号开头即可生成章节。';
+      hint.textContent = t('noHeadings');
       tocListEl.appendChild(hint);
       state.headings = [];
       updateStatus();
@@ -427,7 +588,7 @@
 
     if (!markedReady && !setupMarked()) {
       $('error').hidden = false;
-      $('error-text').textContent = '渲染库未能加载，请重新安装插件。';
+      $('error-text').textContent = t('renderFailed');
       return;
     }
 
@@ -436,7 +597,7 @@
       html = marked.parse(body, { async: false });
     } catch (err) {
       $('error').hidden = false;
-      $('error-text').textContent = 'Markdown 解析失败：' + (err && err.message ? err.message : String(err));
+      $('error-text').textContent = t('parseFailed') + (err && err.message ? err.message : String(err));
       return;
     }
     if (seq !== renderSeq) return; // a newer render started
@@ -658,7 +819,7 @@
   function copyText(text) {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { toast('已复制'); }, fallback);
+      navigator.clipboard.writeText(text).then(function () { toast(t('copied')); }, fallback);
       return;
     }
     fallback();
@@ -673,10 +834,10 @@
         ta.select();
         const ok = document.execCommand('copy');
         document.body.removeChild(ta);
-        if (ok) { toast('已复制'); return; }
+        if (ok) { toast(t('copied')); return; }
       } catch (e) { /* ignore */ }
       post({ type: 'copyText', text: text });
-      toast('已复制');
+      toast(t('copied'));
     }
   }
 
@@ -801,7 +962,7 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
 #doc { max-width: 860px; margin: 0 auto; padding: 44px 28px 90px; }
 `;
 
-    const title = state.name ? stripExt(state.name) : 'Markdown 文档';
+    const title = state.name ? stripExt(state.name) : t('docFallback');
     const themeAttr = state.dark ? 'dark' : 'light';
     return '<!DOCTYPE html>\n<html lang="zh-CN" data-theme="' + themeAttr + '">\n<head>\n' +
       '<meta charset="utf-8">\n' +
@@ -819,13 +980,13 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
   }
 
   async function exportHtml(mode) {
-    if (!state.text.trim()) { toast('没有可导出的内容'); return; }
-    toast('正在生成…', 4000);
+    if (!state.text.trim()) { toast(t('noContent')); return; }
+    toast(t('generating'), 4000);
     let html;
     try {
       html = await buildStandaloneHtml();
     } catch (e) {
-      toast('生成失败：' + (e && e.message ? e.message : e));
+      toast(t('genFailed') + (e && e.message ? e.message : e));
       return;
     }
     const name = (state.name ? stripExt(state.name) : 'preview') + '.html';
@@ -838,7 +999,7 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
       a.download = name;
       a.click();
     }
-    toast(mode === 'browser' ? '已在浏览器中打开' : '已导出');
+    toast(mode === 'browser' ? t('openedBrowser') : t('exported'));
   }
 
   function enterPrintMode(on) {
@@ -862,7 +1023,8 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
           dark: typeof msg.dark === 'boolean' ? msg.dark : undefined,
           fontSize: typeof msg.fontSize === 'number' ? msg.fontSize : undefined,
           toc: typeof msg.toc === 'boolean' ? msg.toc : undefined,
-          sync: typeof msg.sync === 'boolean' ? msg.sync : undefined
+          sync: typeof msg.sync === 'boolean' ? msg.sync : undefined,
+          lang: typeof msg.lang === 'string' ? msg.lang : undefined
         });
         break;
       }
@@ -891,13 +1053,17 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
   // -------------------------------------------------------------- ui wiring --
 
   const THEME_MODES = ['auto', 'light', 'dark'];
-  const THEME_LABEL = { auto: '跟随编辑器', light: '浅色', dark: '深色' };
 
   function refreshThemeButton() {
     document.documentElement.dataset.themeMode = state.mode || 'auto';
     const btn = $('btn-theme');
     if (!btn) return;
-    btn.title = '主题：' + (THEME_LABEL[state.mode] || state.mode) + '（点击切换）';
+    btn.title = t('themeButton', { name: themeName(state.mode) });
+  }
+
+  function refreshSyncMenu() {
+    const item = document.querySelector('#more-menu [data-act="toggle-sync"]');
+    if (item) item.textContent = state.sync ? t('syncOn') : t('syncOff');
   }
 
   function toggleTheme() {
@@ -906,10 +1072,20 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
     state.mode = next;
     post({ type: 'setTheme', value: next });
     refreshThemeButton();
-    toast('主题：' + THEME_LABEL[next], 1100);
+    toast(t('themeToast', { name: themeName(next) }), 1100);
   }
 
   $('btn-theme').addEventListener('click', toggleTheme);
+
+  // Clicking a heading jumps to its source line in the editor.
+  docEl.addEventListener('click', function (ev) {
+    if (ev.detail !== 1) return;
+    const head = ev.target && ev.target.closest ? ev.target.closest('h1, h2, h3, h4, h5, h6') : null;
+    if (!head || !head.dataset || !head.dataset.line) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && String(sel).trim()) return;
+    post({ type: 'revealLine', line: parseInt(head.dataset.line, 10) });
+  });
 
   $('btn-toc').addEventListener('click', function () {
     if (isNarrow()) {
@@ -943,8 +1119,7 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
     const menu = $('more-menu');
     if (!menu.hidden) { closeMenus(); return; }
     const r = ev.currentTarget.getBoundingClientRect();
-    $('more-menu').querySelector('[data-act="toggle-sync"]').textContent =
-      '滚动同步：' + (state.sync ? '开' : '关');
+    refreshSyncMenu();
     placeMenu(menu, r.right - 200, r.bottom + 4);
     $('btn-more').setAttribute('aria-expanded', 'true');
   });
@@ -963,7 +1138,8 @@ html, body { height: auto; overflow: visible; background: ${state.dark ? '#0d111
       case 'toggle-sync':
         state.sync = !state.sync;
         post({ type: 'setSync', value: state.sync });
-        toast('滚动同步：' + (state.sync ? '开' : '关'), 1200);
+        refreshSyncMenu();
+        toast(state.sync ? t('syncOn') : t('syncOff'), 1200);
         break;
       case 'sync-now': post({ type: 'syncNow' }); break;
       default: break;

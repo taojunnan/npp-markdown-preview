@@ -12,6 +12,10 @@ Dark:
 
 ![Dark preview](docs/shots/preview-dark.png)
 
+English UI (set `language=en`):
+
+![English preview](docs/shots/preview-en.png)
+
 ## Features
 
 - **Typography** — built on [github-markdown-css](https://github.com/sindresorhus/github-markdown-css): an ~840 px reading column, 1.75 line height, close to GitHub / Typora
@@ -20,8 +24,10 @@ Dark:
 - **Tables, task lists, footnotes, strikethrough** — fully supported; wide tables scroll horizontally
 - **Local images** — relative paths resolve against the Markdown file's folder; absolute paths, SVG and emoji work too
 - **Table of contents** — auto-generated on the left, highlights the current section while scrolling, click to jump
+- **Jump back to source** — click any heading in the preview and the editor caret moves to that line
 - **Scroll sync** — editor → preview is interpolated by heading lines; preview → editor works too
 - **Themes** — light / dark / follow editor, one click from the panel toolbar
+- **Bilingual UI** — follows the system language, or pin it in the config file
 - **Export** — HTML (single file, images inlined), PDF, print
 - **Light on resources** — the panel starts closed and idle; nothing runs until you open it. The browser processes are released 30 s after the panel is hidden (~180 MB back)
 
@@ -124,6 +130,8 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Zig "C:\path\to\zig.exe"
 | `Ctrl+Shift+C` | copy the current selection | panel |
 | `Esc` | close menus / dismiss the image lightbox | panel |
 
+**Click any heading** in the preview to move the editor caret to that source line (dragging to select text does not trigger it).
+
 ## Configuration
 
 There are three layers, highest priority first: **panel buttons / menu** (applied immediately and written back) → **config file** (read at startup).
@@ -165,6 +173,7 @@ Path: `%APPDATA%\Notepad++\plugins\config\MarkdownPreview\MarkdownPreview.ini`
 autoOpen=0
 preload=0
 releaseOnHide=1
+language=auto
 [appearance]
 theme=auto
 fontSize=16
@@ -181,6 +190,7 @@ sync=1
 | `fontSize` | `16` | `12` – `24` | body font size in px; the `A−` / `A+` buttons change this |
 | `toc` | `1` | `0` / `1` | show the contents column |
 | `sync` | `1` | `0` / `1` | synchronised scrolling between editor and preview |
+| `language` | `auto` | `auto` / `zh` / `en` | UI language; `auto` follows the system language |
 | `debug` | `0` | `0` / `1` | write startup, navigation and render timings to `preview.log` |
 
 Hand-edited values take effect after restarting Notepad++; changes made from the menu or panel buttons apply immediately and are written back to the file.

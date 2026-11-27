@@ -871,3 +871,6 @@ body.print-mode .h-anchor { display: none !important; }
   .cb-head { color: #57606a; }
   .cb-copy, .h-anchor { display: none !important; }
 }
+/* -------------------------------------------------------- source jumping -- */
+#doc .jumpable { cursor: pointer; }
+#doc .jumpable:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
